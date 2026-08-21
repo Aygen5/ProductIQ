@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ProductIQ.API/ProductIQ.API.csproj" />
+    <Project Path="src/ProductIQ.Application/ProductIQ.Application.csproj" />
+    <Project Path="src/ProductIQ.Domain/ProductIQ.Domain.csproj" />
+    <Project Path="src/ProductIQ.Infrastructure/ProductIQ.Infrastructure.csproj" />
+  </Folder>
+</Solution>

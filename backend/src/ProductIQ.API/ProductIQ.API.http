@@ -1,0 +1,6 @@
+@ProductIQ.API_HostAddress = http://localhost:5003
+
+GET {{ProductIQ.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
