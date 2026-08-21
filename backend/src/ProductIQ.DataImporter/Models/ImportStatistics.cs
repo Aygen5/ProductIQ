@@ -12,5 +12,9 @@ public class ImportStatistics
     public int ImagesCatalogCount { get; set; }
     public long ImageLookupHits { get; set; }
     public long ImageLookupMisses { get; set; }
+    public long InsertedProductsCount { get; set; }
+    public long UpdatedProductsCount { get; set; }
+    public long TotalImagesSaved { get; set; }
+    public long TotalAttributesSaved { get; set; }
     public TimeSpan ElapsedTime { get; set; }
 }

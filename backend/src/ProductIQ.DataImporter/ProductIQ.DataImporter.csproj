@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ProductIQ.Domain\ProductIQ.Domain.csproj" />
+    <ProjectReference Include="..\ProductIQ.Infrastructure\ProductIQ.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

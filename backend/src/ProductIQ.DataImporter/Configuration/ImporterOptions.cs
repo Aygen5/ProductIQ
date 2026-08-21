@@ -11,4 +11,5 @@ public class ImporterOptions
     public string TargetDomain { get; set; } = "amazon.com";
     public bool RequireMainImage { get; set; } = true;
     public string PreferredLanguage { get; set; } = "en_US";
+    public int BatchSize { get; set; } = 1000;
 }
