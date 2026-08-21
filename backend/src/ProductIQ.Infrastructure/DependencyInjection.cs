@@ -17,6 +17,7 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString, npgsqlOptions =>
             {
                 npgsqlOptions.MigrationsAssembly(typeof(ProductIQDbContext).Assembly.FullName);
+                npgsqlOptions.UseVector();
             });
         });
 
