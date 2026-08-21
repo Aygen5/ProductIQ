@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { NavLink } from "react-router-dom";
 
 export const Sidebar: React.FC = () => {
@@ -63,7 +63,7 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       <div className="p-md mt-auto border-t border-outline-variant/10">
-        <NavLink to="/settings" className={navItemClass + " mb-base"}>
+        <NavLink to="/settings" className={(props) => `${navItemClass(props)} mb-base`}>
           <span className="material-symbols-outlined mr-md">settings</span>
           <span className="font-label-md text-label-md">Settings</span>
         </NavLink>
