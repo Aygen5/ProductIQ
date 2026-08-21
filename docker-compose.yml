@@ -1,0 +1,16 @@
+﻿services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: productiq-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: productiq_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - productiq_pgdata:/var/lib/postgresql/data
+
+volumes:
+  productiq_pgdata:
