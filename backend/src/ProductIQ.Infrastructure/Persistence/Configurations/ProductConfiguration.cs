@@ -34,6 +34,12 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Category)
             .HasMaxLength(1000);
 
+        builder.Property(p => p.NodeId);
+        builder.HasIndex(p => p.NodeId);
+
+        builder.Property(p => p.NodePath)
+            .HasMaxLength(1000);
+
         builder.Property(p => p.ModelName)
             .HasMaxLength(255);
 
@@ -63,6 +69,17 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         builder.Property(p => p.RawMetadata)
             .HasColumnType("jsonb");
+
+        // Value Object: ItemDimensions
+        builder.OwnsOne(p => p.Dimensions, d =>
+        {
+            d.Property(dim => dim.Length).HasColumnName("dimension_length");
+            d.Property(dim => dim.Width).HasColumnName("dimension_width");
+            d.Property(dim => dim.Height).HasColumnName("dimension_height");
+            d.Property(dim => dim.Weight).HasColumnName("dimension_weight");
+            d.Property(dim => dim.DimensionUnit).HasMaxLength(50).HasColumnName("dimension_unit");
+            d.Property(dim => dim.WeightUnit).HasMaxLength(50).HasColumnName("weight_unit");
+        });
 
         // Relationships
         builder.HasMany(p => p.Images)

@@ -13,14 +13,14 @@ public class ProductIQDbContext : DbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductAttribute> ProductAttributes => Set<ProductAttribute>();
+    public DbSet<DuplicateCandidate> DuplicateCandidates => Set<DuplicateCandidate>();
+    public DbSet<RiskAlert> RiskAlerts => Set<RiskAlert>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<SearchQueryLog> SearchQueryLogs => Set<SearchQueryLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        // Register PostgreSQL pgvector extension for future vector embeddings
-        modelBuilder.HasPostgresExtension("vector");
-
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductIQDbContext).Assembly);
     }
 }
