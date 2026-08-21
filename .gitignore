@@ -24,3 +24,14 @@ Thumbs.db
 **/bin/
 **/obj/
 *.sln.DotSettings.user
+
+# Dataset & Local Data
+data/
+**/data/
+*.gz
+*.tar
+*.jsonl
+*.ndjson
+*.csv
+!frontend/src/**
+!backend/src/**/sample*.csv
