@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using ProductIQ.Application.Interfaces;
+using ProductIQ.Application.Services;
 
 namespace ProductIQ.Application;
 
@@ -6,7 +8,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
-        // Application layer services, validators, and handlers will be registered here.
+        services.AddScoped<IProductService, ProductService>();
         return services;
     }
 }
