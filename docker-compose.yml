@@ -8,7 +8,7 @@
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: productiq_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - productiq_pgdata:/var/lib/postgresql/data
 
