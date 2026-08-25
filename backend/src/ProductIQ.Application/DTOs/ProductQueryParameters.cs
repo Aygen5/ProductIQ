@@ -2,28 +2,27 @@
 
 public class ProductQueryParameters
 {
-    private const int MaxPageSize = 100;
-    private const int DefaultPageSize = 20;
-
-    private int _page = 1;
-    private int _pageSize = DefaultPageSize;
-
-    public int Page
+    private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        get => _page;
-        set => _page = value < 1 ? 1 : value;
-    }
+        "name", "brand", "category", "producttype", "price", "createdat"
+    };
 
-    public int PageSize
-    {
-        get => _pageSize;
-        set => _pageSize = value < 1 ? 1 : (value > MaxPageSize ? MaxPageSize : value);
-    }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
 
     public string? Search { get; set; }
     public string? Brand { get; set; }
     public string? Category { get; set; }
     public string? ProductType { get; set; }
-    public string? SortBy { get; set; }
-    public bool SortDescending { get; set; }
+
+    private string? _sortBy;
+    public string? SortBy
+    {
+        get => _sortBy;
+        set => _sortBy = value != null && AllowedSortFields.Contains(value.Trim()) ? value.Trim() : null;
+    }
+
+    public string? SortDirection { get; set; }
+
+    public bool SortDescending => string.Equals(SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
 }

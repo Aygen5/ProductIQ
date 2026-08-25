@@ -93,20 +93,20 @@ public class ProductService(IProductIQDbContext context) : IProductService
     {
         return (sortBy?.ToLowerInvariant(), sortDescending) switch
         {
-            ("name", false) => query.OrderBy(p => p.Name),
-            ("name", true) => query.OrderByDescending(p => p.Name),
-            ("brand", false) => query.OrderBy(p => p.Brand),
-            ("brand", true) => query.OrderByDescending(p => p.Brand),
-            ("category", false) => query.OrderBy(p => p.Category),
-            ("category", true) => query.OrderByDescending(p => p.Category),
-            ("producttype", false) => query.OrderBy(p => p.ProductType),
-            ("producttype", true) => query.OrderByDescending(p => p.ProductType),
-            ("price", false) => query.OrderBy(p => p.Price),
-            ("price", true) => query.OrderByDescending(p => p.Price),
-            ("createdat", false) => query.OrderBy(p => p.CreatedAt),
-            ("createdat", true) => query.OrderByDescending(p => p.CreatedAt),
-            (_, true) => query.OrderByDescending(p => p.CreatedAt),
-            _ => query.OrderBy(p => p.CreatedAt)
+            ("name", false) => query.OrderBy(p => p.Name).ThenBy(p => p.Id),
+            ("name", true) => query.OrderByDescending(p => p.Name).ThenBy(p => p.Id),
+            ("brand", false) => query.OrderBy(p => p.Brand).ThenBy(p => p.Id),
+            ("brand", true) => query.OrderByDescending(p => p.Brand).ThenBy(p => p.Id),
+            ("category", false) => query.OrderBy(p => p.Category).ThenBy(p => p.Id),
+            ("category", true) => query.OrderByDescending(p => p.Category).ThenBy(p => p.Id),
+            ("producttype", false) => query.OrderBy(p => p.ProductType).ThenBy(p => p.Id),
+            ("producttype", true) => query.OrderByDescending(p => p.ProductType).ThenBy(p => p.Id),
+            ("price", false) => query.OrderBy(p => p.Price).ThenBy(p => p.Id),
+            ("price", true) => query.OrderByDescending(p => p.Price).ThenBy(p => p.Id),
+            ("createdat", false) => query.OrderBy(p => p.CreatedAt).ThenBy(p => p.Id),
+            ("createdat", true) => query.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id),
+            (_, true) => query.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id),
+            _ => query.OrderBy(p => p.CreatedAt).ThenBy(p => p.Id)
         };
     }
 
