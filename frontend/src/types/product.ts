@@ -32,3 +32,55 @@ export interface ProductQueryParams {
   sortBy?: string;
   sortDirection?: "asc" | "desc";
 }
+
+export interface ProductImage {
+  id: string;
+  imageId: string;
+  path: string | null;
+  url: string | null;
+  height: number | null;
+  width: number | null;
+  isMain: boolean;
+}
+
+export interface ProductAttribute {
+  id: string;
+  key: string;
+  value: string;
+  language: string | null;
+}
+
+export interface ItemDimensions {
+  length: number | null;
+  width: number | null;
+  height: number | null;
+  weight: number | null;
+  dimensionUnit: string | null;
+  weightUnit: string | null;
+}
+
+export interface ProductDetail {
+  id: string;
+  amazonItemId: string;
+  name: string;
+  description: string | null;
+  brand: string | null;
+  category: string | null;
+  nodeId: number | null;
+  nodePath: string | null;
+  productType: string | null;
+  modelName: string | null;
+  modelNumber: string | null;
+  color: string | null;
+  material: string | null;
+  dimensions: ItemDimensions | null;
+  price: number | null;
+  currency: string | null;
+  mainImageUrl: string | null;
+  country: string | null;
+  domainName: string | null;
+  images: ProductImage[];
+  attributes: ProductAttribute[];
+  createdAt: string;
+  updatedAt: string | null;
+}
