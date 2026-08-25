@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductIQ.Application.Common.Models;
 using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
