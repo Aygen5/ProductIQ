@@ -1,9 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using ProductIQ.Application.Interfaces;
 using ProductIQ.Domain.Entities;
 
 namespace ProductIQ.Infrastructure.Persistence;
 
-public class ProductIQDbContext : DbContext
+public class ProductIQDbContext : DbContext, IProductIQDbContext
 {
     public ProductIQDbContext(DbContextOptions<ProductIQDbContext> options)
         : base(options)
