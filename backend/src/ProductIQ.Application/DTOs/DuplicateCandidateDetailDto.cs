@@ -20,6 +20,7 @@ public class DuplicateCandidateDetailDto
     public string? MatchSignals { get; set; }
     public string? AiExplanation { get; set; }
     public string? ResolutionNotes { get; set; }
+    public DateTime? ReviewedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

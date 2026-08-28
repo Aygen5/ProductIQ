@@ -12,4 +12,7 @@ public interface IDuplicateCandidateService
     Task<DuplicateCandidateDetailDto?> GetCandidateDetailByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<DuplicateCandidatesSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default);
     Task<int> GetCandidatesCountAsync(DuplicateStatus? status = null, CancellationToken cancellationToken = default);
+    Task<DuplicateCandidateDetailDto> ConfirmCandidateAsync(Guid candidateId, string? resolutionNotes = null, CancellationToken cancellationToken = default);
+    Task<DuplicateCandidateDetailDto> RejectCandidateAsync(Guid candidateId, string? resolutionNotes = null, CancellationToken cancellationToken = default);
+    Task<DuplicateCandidateDetailDto> UpdateCandidateStatusAsync(Guid candidateId, DuplicateStatus status, string? resolutionNotes = null, CancellationToken cancellationToken = default);
 }

@@ -77,7 +77,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             for (var i = 0; i < blockItems.Count; i++)
             {
                 for (var j = i + 1; j < blockItems.Count; j++)
-                {
+                    {
                     var p1 = blockItems[i];
                     var p2 = blockItems[j];
 
@@ -362,27 +362,51 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             return null;
         }
 
-        return new DuplicateCandidateDetailDto
+        return MapToCandidateDetailDto(candidate);
+    }
+
+    public async Task<DuplicateCandidateDetailDto> ConfirmCandidateAsync(Guid candidateId, string? resolutionNotes = null, CancellationToken cancellationToken = default)
+    {
+        return await UpdateCandidateStatusAsync(candidateId, DuplicateStatus.Confirmed, resolutionNotes, cancellationToken);
+    }
+
+    public async Task<DuplicateCandidateDetailDto> RejectCandidateAsync(Guid candidateId, string? resolutionNotes = null, CancellationToken cancellationToken = default)
+    {
+        return await UpdateCandidateStatusAsync(candidateId, DuplicateStatus.Rejected, resolutionNotes, cancellationToken);
+    }
+
+    public async Task<DuplicateCandidateDetailDto> UpdateCandidateStatusAsync(Guid candidateId, DuplicateStatus status, string? resolutionNotes = null, CancellationToken cancellationToken = default)
+    {
+        var candidate = await _context.DuplicateCandidates
+            .Include(d => d.ProductA)
+                .ThenInclude(p => p.Images)
+            .Include(d => d.ProductA)
+                .ThenInclude(p => p.Attributes)
+            .Include(d => d.ProductB)
+                .ThenInclude(p => p.Images)
+            .Include(d => d.ProductB)
+                .ThenInclude(p => p.Attributes)
+            .FirstOrDefaultAsync(d => d.Id == candidateId, cancellationToken);
+
+        if (candidate == null)
         {
-            Id = candidate.Id,
-            ProductAId = candidate.ProductAId,
-            ProductBId = candidate.ProductBId,
-            ProductA = candidate.ProductA != null ? MapToDetailDto(candidate.ProductA) : null,
-            ProductB = candidate.ProductB != null ? MapToDetailDto(candidate.ProductB) : null,
-            OverallScore = candidate.OverallScore,
-            TextSimilarity = candidate.TextSimilarity,
-            SemanticSimilarity = candidate.SemanticSimilarity,
-            AttributeSimilarity = candidate.AttributeSimilarity,
-            VisualSimilarity = candidate.VisualSimilarity,
-            BrandMatch = candidate.BrandMatch,
-            ModelMatch = candidate.ModelMatch,
-            Status = candidate.Status,
-            MatchSignals = candidate.MatchSignals,
-            AiExplanation = candidate.AiExplanation,
-            ResolutionNotes = candidate.ResolutionNotes,
-            CreatedAt = candidate.CreatedAt,
-            UpdatedAt = candidate.UpdatedAt
-        };
+            throw new KeyNotFoundException($"Duplicate candidate with ID '{candidateId}' was not found.");
+        }
+
+        candidate.Status = status;
+        candidate.ReviewedAt = DateTime.UtcNow;
+        candidate.UpdatedAt = DateTime.UtcNow;
+
+        if (resolutionNotes != null)
+        {
+            candidate.ResolutionNotes = resolutionNotes;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Candidate {CandidateId} status updated to {Status}", candidateId, status);
+
+        return MapToCandidateDetailDto(candidate);
     }
 
     public async Task<DuplicateCandidatesSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
@@ -476,6 +500,32 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             Status = c.Status,
             MatchSignals = c.MatchSignals,
             CreatedAt = c.CreatedAt
+        };
+    }
+
+    private static DuplicateCandidateDetailDto MapToCandidateDetailDto(DuplicateCandidate candidate)
+    {
+        return new DuplicateCandidateDetailDto
+        {
+            Id = candidate.Id,
+            ProductAId = candidate.ProductAId,
+            ProductBId = candidate.ProductBId,
+            ProductA = candidate.ProductA != null ? MapToDetailDto(candidate.ProductA) : null,
+            ProductB = candidate.ProductB != null ? MapToDetailDto(candidate.ProductB) : null,
+            OverallScore = candidate.OverallScore,
+            TextSimilarity = candidate.TextSimilarity,
+            SemanticSimilarity = candidate.SemanticSimilarity,
+            AttributeSimilarity = candidate.AttributeSimilarity,
+            VisualSimilarity = candidate.VisualSimilarity,
+            BrandMatch = candidate.BrandMatch,
+            ModelMatch = candidate.ModelMatch,
+            Status = candidate.Status,
+            MatchSignals = candidate.MatchSignals,
+            AiExplanation = candidate.AiExplanation,
+            ResolutionNotes = candidate.ResolutionNotes,
+            ReviewedAt = candidate.ReviewedAt,
+            CreatedAt = candidate.CreatedAt,
+            UpdatedAt = candidate.UpdatedAt
         };
     }
 
