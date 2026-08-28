@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProductIQ.Application.Common.Configuration;
+using ProductIQ.Application.Common.Models;
 using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
 using ProductIQ.Domain.Entities;
@@ -268,12 +269,158 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         }
 
         var candidates = await query
-            .OrderByDescending(d => d.CreatedAt)
+            .OrderByDescending(d => d.OverallScore)
+            .ThenByDescending(d => d.CreatedAt)
             .Skip((Math.Max(1, page) - 1) * Math.Clamp(pageSize, 1, 100))
             .Take(Math.Clamp(pageSize, 1, 100))
             .ToListAsync(cancellationToken);
 
         return candidates.Select(MapToSummaryDto).ToList();
+    }
+
+    public async Task<PagedResponse<DuplicateCandidateSummaryDto>> GetPagedCandidatesAsync(DuplicateCandidateQueryParameters parameters, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, parameters.Page);
+        var pageSize = Math.Clamp(parameters.PageSize, 1, 100);
+
+        var query = _context.DuplicateCandidates
+            .AsNoTracking()
+            .Include(d => d.ProductA)
+            .Include(d => d.ProductB)
+            .AsQueryable();
+
+        if (parameters.Status.HasValue)
+        {
+            query = query.Where(d => d.Status == parameters.Status.Value);
+        }
+
+        if (parameters.MinScore.HasValue)
+        {
+            query = query.Where(d => d.OverallScore >= parameters.MinScore.Value);
+        }
+
+        if (parameters.MaxScore.HasValue)
+        {
+            query = query.Where(d => d.OverallScore <= parameters.MaxScore.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.Brand))
+        {
+            var brandQuery = parameters.Brand.Trim().ToLowerInvariant();
+            query = query.Where(d => (d.ProductA.Brand != null && d.ProductA.Brand.ToLower().Contains(brandQuery)) ||
+                                     (d.ProductB.Brand != null && d.ProductB.Brand.ToLower().Contains(brandQuery)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.Search))
+        {
+            var search = parameters.Search.Trim().ToLowerInvariant();
+            query = query.Where(d => d.ProductA.Name.ToLower().Contains(search) ||
+                                     d.ProductB.Name.ToLower().Contains(search) ||
+                                     d.ProductA.AmazonItemId.ToLower().Contains(search) ||
+                                     d.ProductB.AmazonItemId.ToLower().Contains(search));
+        }
+
+        var isDesc = string.Equals(parameters.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+
+        query = parameters.SortBy?.ToLowerInvariant() switch
+        {
+            "date" or "createdat" => isDesc ? query.OrderByDescending(d => d.CreatedAt) : query.OrderBy(d => d.CreatedAt),
+            "text" or "textsimilarity" => isDesc ? query.OrderByDescending(d => d.TextSimilarity) : query.OrderBy(d => d.TextSimilarity),
+            "semantic" or "semanticsimilarity" => isDesc ? query.OrderByDescending(d => d.SemanticSimilarity) : query.OrderBy(d => d.SemanticSimilarity),
+            "attribute" or "attributesimilarity" => isDesc ? query.OrderByDescending(d => d.AttributeSimilarity) : query.OrderBy(d => d.AttributeSimilarity),
+            _ => isDesc ? query.OrderByDescending(d => d.OverallScore).ThenByDescending(d => d.CreatedAt) : query.OrderBy(d => d.OverallScore).ThenBy(d => d.CreatedAt)
+        };
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var candidates = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = candidates.Select(MapToSummaryDto).ToList();
+
+        return new PagedResponse<DuplicateCandidateSummaryDto>(items, totalCount, page, pageSize);
+    }
+
+    public async Task<DuplicateCandidateDetailDto?> GetCandidateDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var candidate = await _context.DuplicateCandidates
+            .AsNoTracking()
+            .Include(d => d.ProductA)
+                .ThenInclude(p => p.Images)
+            .Include(d => d.ProductA)
+                .ThenInclude(p => p.Attributes)
+            .Include(d => d.ProductB)
+                .ThenInclude(p => p.Images)
+            .Include(d => d.ProductB)
+                .ThenInclude(p => p.Attributes)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
+        if (candidate == null)
+        {
+            return null;
+        }
+
+        return new DuplicateCandidateDetailDto
+        {
+            Id = candidate.Id,
+            ProductAId = candidate.ProductAId,
+            ProductBId = candidate.ProductBId,
+            ProductA = candidate.ProductA != null ? MapToDetailDto(candidate.ProductA) : null,
+            ProductB = candidate.ProductB != null ? MapToDetailDto(candidate.ProductB) : null,
+            OverallScore = candidate.OverallScore,
+            TextSimilarity = candidate.TextSimilarity,
+            SemanticSimilarity = candidate.SemanticSimilarity,
+            AttributeSimilarity = candidate.AttributeSimilarity,
+            VisualSimilarity = candidate.VisualSimilarity,
+            BrandMatch = candidate.BrandMatch,
+            ModelMatch = candidate.ModelMatch,
+            Status = candidate.Status,
+            MatchSignals = candidate.MatchSignals,
+            AiExplanation = candidate.AiExplanation,
+            ResolutionNotes = candidate.ResolutionNotes,
+            CreatedAt = candidate.CreatedAt,
+            UpdatedAt = candidate.UpdatedAt
+        };
+    }
+
+    public async Task<DuplicateCandidatesSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        var candidates = await _context.DuplicateCandidates
+            .AsNoTracking()
+            .Select(d => new { d.Status, d.OverallScore })
+            .ToListAsync(cancellationToken);
+
+        var total = candidates.Count;
+        var scored = candidates.Count(c => c.OverallScore > 0);
+
+        var potential = candidates.Count(c => c.Status == DuplicateStatus.Potential);
+        var confirmed = candidates.Count(c => c.Status == DuplicateStatus.Confirmed);
+        var rejected = candidates.Count(c => c.Status == DuplicateStatus.Rejected);
+
+        var high = candidates.Count(c => c.OverallScore >= 0.55m);
+        var medium = candidates.Count(c => c.OverallScore >= 0.40m && c.OverallScore < 0.55m);
+        var low = candidates.Count(c => c.OverallScore < 0.40m);
+
+        var avg = scored > 0 ? Math.Round(candidates.Where(c => c.OverallScore > 0).Average(c => c.OverallScore), 4) : 0;
+        var min = scored > 0 ? candidates.Where(c => c.OverallScore > 0).Min(c => c.OverallScore) : 0;
+        var max = scored > 0 ? candidates.Where(c => c.OverallScore > 0).Max(c => c.OverallScore) : 0;
+
+        return new DuplicateCandidatesSummaryDto
+        {
+            TotalCandidates = total,
+            ScoredCandidates = scored,
+            PotentialCount = potential,
+            ConfirmedCount = confirmed,
+            RejectedCount = rejected,
+            HighConfidenceCount = high,
+            MediumConfidenceCount = medium,
+            LowConfidenceCount = low,
+            AverageOverallScore = avg,
+            MinimumScore = min,
+            MaximumScore = max
+        };
     }
 
     public async Task<int> GetCandidatesCountAsync(DuplicateStatus? status = null, CancellationToken cancellationToken = default)
@@ -329,6 +476,63 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             Status = c.Status,
             MatchSignals = c.MatchSignals,
             CreatedAt = c.CreatedAt
+        };
+    }
+
+    private static ProductDetailDto MapToDetailDto(Product product)
+    {
+        return new ProductDetailDto
+        {
+            Id = product.Id,
+            AmazonItemId = product.AmazonItemId,
+            Name = product.Name,
+            Description = product.Description,
+            Brand = product.Brand,
+            Category = product.Category,
+            NodeId = product.NodeId,
+            NodePath = product.NodePath,
+            ProductType = product.ProductType,
+            ModelName = product.ModelName,
+            ModelNumber = product.ModelNumber,
+            Color = product.Color,
+            Material = product.Material,
+            Dimensions = product.Dimensions == null ? null : new ItemDimensionsDto
+            {
+                Length = product.Dimensions.Length,
+                Width = product.Dimensions.Width,
+                Height = product.Dimensions.Height,
+                Weight = product.Dimensions.Weight,
+                DimensionUnit = product.Dimensions.DimensionUnit,
+                WeightUnit = product.Dimensions.WeightUnit
+            },
+            Price = product.Price,
+            Currency = product.Currency,
+            MainImageUrl = product.MainImageUrl,
+            Country = product.Country,
+            DomainName = product.DomainName,
+            Images = product.Images
+                .OrderByDescending(i => i.IsMain)
+                .Select(i => new ProductImageDto
+                {
+                    Id = i.Id,
+                    ImageId = i.ImageId,
+                    Path = i.Path,
+                    Url = i.Url,
+                    Width = i.Width,
+                    Height = i.Height,
+                    IsMain = i.IsMain
+                }).ToList(),
+            Attributes = product.Attributes
+                .OrderBy(a => a.Key)
+                .Select(a => new ProductAttributeDto
+                {
+                    Id = a.Id,
+                    Key = a.Key,
+                    Value = a.Value,
+                    Language = a.Language
+                }).ToList(),
+            CreatedAt = product.CreatedAt,
+            UpdatedAt = product.UpdatedAt
         };
     }
 
