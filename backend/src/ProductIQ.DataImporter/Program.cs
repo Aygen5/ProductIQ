@@ -44,7 +44,44 @@ using (var scope = host.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    if (args.Contains("--generate-embeddings", StringComparer.OrdinalIgnoreCase))
+    if (args.Contains("--detect-candidates", StringComparer.OrdinalIgnoreCase))
+    {
+        var candidateService = scope.ServiceProvider.GetRequiredService<IDuplicateCandidateService>();
+        logger.LogInformation("Starting Duplicate Candidate Detection pipeline for all products in database...");
+
+        var result = await candidateService.RunCandidateDetectionAsync();
+
+        logger.LogInformation("Candidate Detection Summary: Products Evaluated: {Products}, Candidate Pairs Found: {Found}, Newly Saved: {Saved}, Skipped (Existing): {Skipped} in {Elapsed}ms",
+            result.TotalProductsEvaluated, result.TotalCandidatePairsFound, result.NewlySavedCandidates, result.SkippedExistingCandidates, result.ExecutionDuration.TotalMilliseconds);
+
+        foreach (var rule in result.RuleMatchCounts)
+        {
+            logger.LogInformation(" - Rule [{Rule}]: {Count} matches", rule.Key, rule.Value);
+        }
+    }
+    else if (args.Contains("--list-candidates", StringComparer.OrdinalIgnoreCase))
+    {
+        var candidateService = scope.ServiceProvider.GetRequiredService<IDuplicateCandidateService>();
+        var candidates = await candidateService.GetCandidatesAsync(page: 1, pageSize: 20);
+        var totalCount = await candidateService.GetCandidatesCountAsync();
+
+        logger.LogInformation("Total Duplicate Candidates in Database: {Total}. Showing first {Count}:", totalCount, candidates.Count);
+
+        var idx = 1;
+        foreach (var c in candidates)
+        {
+            logger.LogInformation("{Idx}. [{AsinA}] {NameA} <===> [{AsinB}] {NameB} | BrandMatch: {BM}, ModelMatch: {MM}, Signals: {Signals}",
+                idx++,
+                c.ProductA?.AmazonItemId,
+                c.ProductA?.Name,
+                c.ProductB?.AmazonItemId,
+                c.ProductB?.Name,
+                c.BrandMatch,
+                c.ModelMatch,
+                c.MatchSignals);
+        }
+    }
+    else if (args.Contains("--generate-embeddings", StringComparer.OrdinalIgnoreCase))
     {
         var embeddingBatchService = scope.ServiceProvider.GetRequiredService<IProductEmbeddingBatchService>();
         logger.LogInformation("Starting embedding generation pipeline for all products in database...");
