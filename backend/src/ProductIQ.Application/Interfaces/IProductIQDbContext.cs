@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductIQ.Domain.Entities;
 
 namespace ProductIQ.Application.Interfaces;
@@ -12,5 +12,6 @@ public interface IProductIQDbContext
     DbSet<RiskAlert> RiskAlerts { get; }
     DbSet<SystemSetting> SystemSettings { get; }
     DbSet<SearchQueryLog> SearchQueryLogs { get; }
+    DbSet<ProductEmbedding> ProductEmbeddings { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
