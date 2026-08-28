@@ -1,11 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ProductIQ.Application;
+using ProductIQ.Application.Interfaces;
 using ProductIQ.DataImporter.Configuration;
 using ProductIQ.DataImporter.Services;
-using ProductIQ.Infrastructure.Persistence;
+using ProductIQ.Infrastructure;
 
 var builder = Host.CreateDefaultBuilder(args);
 
@@ -22,16 +24,8 @@ builder.ConfigureServices((hostContext, services) =>
                           ?? new ImporterOptions();
     services.AddSingleton(importerOptions);
 
-    var connectionString = hostContext.Configuration.GetConnectionString("DefaultConnection")
-        ?? "Host=127.0.0.1;Port=5432;Database=productiq_db;Username=postgres;Password=postgres";
-
-    services.AddDbContext<ProductIQDbContext>(options =>
-    {
-        options.UseNpgsql(connectionString, npgsqlOptions =>
-        {
-            npgsqlOptions.MigrationsAssembly(typeof(ProductIQDbContext).Assembly.FullName);
-        });
-    });
+    services.AddInfrastructureServices(hostContext.Configuration);
+    services.AddApplicationServices();
 
     services.AddHttpClient<IAboDownloader, AboDownloader>(client =>
     {
@@ -48,34 +42,109 @@ var host = builder.Build();
 
 using (var scope = host.Services.CreateScope())
 {
-    var pipeline = scope.ServiceProvider.GetRequiredService<IAboImportPipeline>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    bool isDryRun = args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase);
-    int limit = 100;
-
-    for (int i = 0; i < args.Length; i++)
+    if (args.Contains("--generate-embeddings", StringComparer.OrdinalIgnoreCase))
     {
-        if (int.TryParse(args[i], out var parsedLimit))
+        var embeddingBatchService = scope.ServiceProvider.GetRequiredService<IProductEmbeddingBatchService>();
+        logger.LogInformation("Starting embedding generation pipeline for all products in database...");
+
+        var result = await embeddingBatchService.GenerateEmbeddingsForAllProductsAsync();
+
+        logger.LogInformation("Embedding Generation Summary: Total Processed: {Total}, Newly Generated: {New}, Skipped (Unchanged): {Skipped}, Failed: {Failed}",
+            result.TotalProcessed, result.NewlyGenerated, result.SkippedUnchanged, result.Failed);
+
+        if (result.Errors.Count > 0)
         {
-            limit = parsedLimit;
+            foreach (var err in result.Errors)
+            {
+                logger.LogError("Embedding Error: {Error}", err);
+            }
         }
     }
-
-    if (args.Contains("--full", StringComparer.OrdinalIgnoreCase))
+    else if (args.Contains("--similarity-search", StringComparer.OrdinalIgnoreCase))
     {
-        limit = int.MaxValue;
-    }
+        var searchIndex = Array.FindIndex(args, a => string.Equals(a, "--similarity-search", StringComparison.OrdinalIgnoreCase));
+        var targetArg = searchIndex >= 0 && searchIndex + 1 < args.Length ? args[searchIndex + 1] : null;
 
-    if (isDryRun)
-    {
-        logger.LogInformation("Running Dry-Run Validation (Limit: {Limit})...", limit);
-        await pipeline.RunValidationAsync(limit);
+        var similarityService = scope.ServiceProvider.GetRequiredService<ISimilaritySearchService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IProductIQDbContext>();
+
+        Guid targetId = Guid.Empty;
+        if (!string.IsNullOrWhiteSpace(targetArg))
+        {
+            if (Guid.TryParse(targetArg, out var parsedGuid))
+            {
+                targetId = parsedGuid;
+            }
+            else
+            {
+                var prod = await dbContext.Products.FirstOrDefaultAsync(p => p.AmazonItemId == targetArg);
+                if (prod != null)
+                {
+                    targetId = prod.Id;
+                }
+            }
+        }
+
+        if (targetId == Guid.Empty)
+        {
+            var firstProduct = await dbContext.Products.FirstOrDefaultAsync();
+            if (firstProduct != null)
+            {
+                targetId = firstProduct.Id;
+            }
+        }
+
+        if (targetId == Guid.Empty)
+        {
+            logger.LogWarning("No products found in database for similarity search.");
+        }
+        else
+        {
+            var targetProduct = await dbContext.Products.FirstOrDefaultAsync(p => p.Id == targetId);
+            logger.LogInformation("Running Vector Similarity Search for Product: [{Asin}] {Name} (ID: {Id})...", targetProduct?.AmazonItemId, targetProduct?.Name, targetId);
+
+            var similarProducts = await similarityService.FindSimilarProductsAsync(targetId, limit: 5, minSimilarity: null);
+
+            logger.LogInformation("Found {Count} similar products:", similarProducts.Count);
+            foreach (var item in similarProducts)
+            {
+                logger.LogInformation(" -> [{Asin}] {Name} | Brand: {Brand} | Similarity: {Sim:P2} (Cosine Dist: {Dist:F4})",
+                    item.AmazonItemId, item.Name, item.Brand ?? "N/A", item.SimilarityScore, item.CosineDistance);
+            }
+        }
     }
     else
     {
-        logger.LogInformation("Running PostgreSQL Database Import (Limit: {Limit})...", limit);
-        await pipeline.RunDatabaseImportAsync(limit);
+        var pipeline = scope.ServiceProvider.GetRequiredService<IAboImportPipeline>();
+
+        bool isDryRun = args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase);
+        int limit = 100;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (int.TryParse(args[i], out var parsedLimit))
+            {
+                limit = parsedLimit;
+            }
+        }
+
+        if (args.Contains("--full", StringComparer.OrdinalIgnoreCase))
+        {
+            limit = int.MaxValue;
+        }
+
+        if (isDryRun)
+        {
+            logger.LogInformation("Running Dry-Run Validation (Limit: {Limit})...", limit);
+            await pipeline.RunValidationAsync(limit);
+        }
+        else
+        {
+            logger.LogInformation("Running PostgreSQL Database Import (Limit: {Limit})...", limit);
+            await pipeline.RunDatabaseImportAsync(limit);
+        }
     }
 
     logger.LogInformation("Execution finished successfully.");
