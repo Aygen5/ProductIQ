@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using ProductIQ.Application.Common.Models;
 using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
+using ProductIQ.Domain.Enums;
 
 [ApiController]
 [Route("api/duplicate-candidates")]
@@ -75,5 +76,95 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
         }
 
         return Ok(candidate);
+    }
+
+    [HttpPatch("{id:guid}/confirm")]
+    [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<DuplicateCandidateDetailDto>> ConfirmCandidate(
+        Guid id,
+        [FromBody] UpdateCandidateStatusRequest? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await duplicateCandidateService.ConfirmCandidateAsync(id, request?.ResolutionNotes, cancellationToken);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Duplicate Candidate Not Found",
+                Detail = $"Duplicate candidate with identifier '{id}' was not found.",
+                Instance = HttpContext.Request.Path
+            });
+        }
+    }
+
+    [HttpPatch("{id:guid}/reject")]
+    [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<DuplicateCandidateDetailDto>> RejectCandidate(
+        Guid id,
+        [FromBody] UpdateCandidateStatusRequest? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await duplicateCandidateService.RejectCandidateAsync(id, request?.ResolutionNotes, cancellationToken);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Duplicate Candidate Not Found",
+                Detail = $"Duplicate candidate with identifier '{id}' was not found.",
+                Instance = HttpContext.Request.Path
+            });
+        }
+    }
+
+    [HttpPatch("{id:guid}/status")]
+    [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<DuplicateCandidateDetailDto>> UpdateStatus(
+        Guid id,
+        [FromBody] UpdateCandidateStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(typeof(DuplicateStatus), request.Status))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid Status",
+                Detail = $"The status '{request.Status}' is invalid.",
+                Instance = HttpContext.Request.Path
+            });
+        }
+
+        try
+        {
+            var updated = await duplicateCandidateService.UpdateCandidateStatusAsync(id, request.Status, request.ResolutionNotes, cancellationToken);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Duplicate Candidate Not Found",
+                Detail = $"Duplicate candidate with identifier '{id}' was not found.",
+                Instance = HttpContext.Request.Path
+            });
+        }
     }
 }
