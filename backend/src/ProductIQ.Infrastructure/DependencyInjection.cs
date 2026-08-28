@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProductIQ.Application.Interfaces;
@@ -17,6 +17,7 @@ public static class DependencyInjection
         {
             options.UseNpgsql(connectionString, npgsqlOptions =>
             {
+                npgsqlOptions.UseVector();
                 npgsqlOptions.MigrationsAssembly(typeof(ProductIQDbContext).Assembly.FullName);
             });
         });

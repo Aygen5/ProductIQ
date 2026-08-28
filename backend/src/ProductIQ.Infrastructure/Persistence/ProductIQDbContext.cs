@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductIQ.Application.Interfaces;
 using ProductIQ.Domain.Entities;
 
@@ -18,10 +18,12 @@ public class ProductIQDbContext : DbContext, IProductIQDbContext
     public DbSet<RiskAlert> RiskAlerts => Set<RiskAlert>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<SearchQueryLog> SearchQueryLogs => Set<SearchQueryLog>();
+    public DbSet<ProductEmbedding> ProductEmbeddings => Set<ProductEmbedding>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasPostgresExtension("vector");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductIQDbContext).Assembly);
     }
 }
