@@ -44,7 +44,38 @@ using (var scope = host.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    if (args.Contains("--detect-candidates", StringComparer.OrdinalIgnoreCase))
+    if (args.Contains("--score-candidates", StringComparer.OrdinalIgnoreCase))
+    {
+        var scoringService = scope.ServiceProvider.GetRequiredService<IDuplicateScoringService>();
+        logger.LogInformation("Starting Duplicate Scoring Engine for all candidates in database...");
+
+        var result = await scoringService.ScoreAllCandidatesAsync();
+
+        logger.LogInformation("Scoring Summary: Evaluated: {Evaluated}, Scored: {Scored}, Avg Score: {Avg:F4}, Min: {Min:F4}, Max: {Max:F4} in {Elapsed}ms",
+            result.TotalCandidatesEvaluated, result.TotalCandidatesScored, result.AverageOverallScore, result.LowestScore, result.HighestScore, result.ExecutionDuration.TotalMilliseconds);
+
+        logger.LogInformation("Top 5 Highest Scored Candidates:");
+        var topCandidates = result.ScoredCandidates.Take(5);
+        var rank = 1;
+        foreach (var sc in topCandidates)
+        {
+            var b = sc.ScoreBreakdown;
+            logger.LogInformation("{Rank}. [{AsinA}] {NameA} <===> [{AsinB}] {NameB} | Overall: {Overall:P2} (Brand: {Brand:P0}, Cat: {Cat:P0}, Model: {Model:P0}, Text: {Text:P0}, Sem: {Sem:P0}, Attr: {Attr:P0})",
+                rank++,
+                sc.ProductAAsin,
+                sc.ProductAName,
+                sc.ProductBAsin,
+                sc.ProductBName,
+                b.OverallScore,
+                b.BrandScore,
+                b.CategoryScore,
+                b.ModelScore,
+                b.TextSimilarity,
+                b.SemanticSimilarity,
+                b.AttributeSimilarity);
+        }
+    }
+    else if (args.Contains("--detect-candidates", StringComparer.OrdinalIgnoreCase))
     {
         var candidateService = scope.ServiceProvider.GetRequiredService<IDuplicateCandidateService>();
         logger.LogInformation("Starting Duplicate Candidate Detection pipeline for all products in database...");
@@ -70,12 +101,13 @@ using (var scope = host.Services.CreateScope())
         var idx = 1;
         foreach (var c in candidates)
         {
-            logger.LogInformation("{Idx}. [{AsinA}] {NameA} <===> [{AsinB}] {NameB} | BrandMatch: {BM}, ModelMatch: {MM}, Signals: {Signals}",
+            logger.LogInformation("{Idx}. [{AsinA}] {NameA} <===> [{AsinB}] {NameB} | Overall: {Overall:P2}, BrandMatch: {BM}, ModelMatch: {MM}, Signals: {Signals}",
                 idx++,
                 c.ProductA?.AmazonItemId,
                 c.ProductA?.Name,
                 c.ProductB?.AmazonItemId,
                 c.ProductB?.Name,
+                c.OverallScore,
                 c.BrandMatch,
                 c.ModelMatch,
                 c.MatchSignals);
