@@ -11,6 +11,7 @@ public static class DependencyInjection
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IProductEmbeddingService, ProductEmbeddingService>();
         services.AddScoped<IProductEmbeddingBatchService, ProductEmbeddingBatchService>();
+        services.AddScoped<IDuplicateCandidateService, DuplicateCandidateService>();
         return services;
     }
 }
