@@ -1,8 +1,79 @@
-﻿import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { fetchDuplicateCandidates, fetchDuplicateSummary } from "../../services/duplicateService";
+import type { DuplicateCandidateSummary, DuplicateCandidatesSummary } from "../../types/duplicate";
 
 export const DuplicateQueuePage: React.FC = () => {
   const navigate = useNavigate();
+
+  const [candidates, setCandidates] = useState<DuplicateCandidateSummary[]>([]);
+  const [summary, setSummary] = useState<DuplicateCandidatesSummary | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [page, setPage] = useState<number>(1);
+  const [pageSize] = useState<number>(10);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+
+  const [minScore, setMinScore] = useState<number | undefined>(undefined);
+  const [search, setSearch] = useState<string>("");
+  const [brandFilter, setBrandFilter] = useState<string>("");
+
+  const loadSummary = useCallback(async () => {
+    try {
+      const data = await fetchDuplicateSummary();
+      setSummary(data);
+    } catch {
+    }
+  }, []);
+
+  const loadCandidates = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchDuplicateCandidates({
+        page,
+        pageSize,
+        minScore,
+        search: search.trim() || undefined,
+        brand: brandFilter.trim() || undefined,
+        sortBy: "score",
+        sortDirection: "desc",
+      });
+
+      setCandidates(res.items);
+      setTotalCount(res.totalCount);
+      setTotalPages(res.totalPages);
+    } catch (err: any) {
+      setError(err.message || "Failed to load duplicate candidates.");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, minScore, search, brandFilter]);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
+
+  useEffect(() => {
+    loadCandidates();
+  }, [loadCandidates]);
+
+  const parseSignals = (matchSignals: string | null) => {
+    if (!matchSignals) return null;
+    try {
+      return JSON.parse(matchSignals);
+    } catch {
+      return null;
+    }
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 0.55) return "text-primary stroke-primary bg-primary-container/20 text-on-primary-container";
+    if (score >= 0.45) return "text-tertiary stroke-tertiary bg-tertiary-container/20 text-on-tertiary-container";
+    return "text-secondary stroke-secondary bg-secondary-container/20 text-on-secondary-container";
+  };
 
   return (
     <div className="flex flex-col w-full relative">
@@ -12,81 +83,133 @@ export const DuplicateQueuePage: React.FC = () => {
         <header className="flex flex-col gap-xs mb-md">
           <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Detection</h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
-            Review products that may represent the same catalog item.
+            Review product pairs detected by the automated matching pipeline with multi-signal similarity scores.
           </p>
         </header>
 
-        {/* 3 Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
           <div className="flex flex-col p-md bg-surface-container rounded-2xl shadow-sm hover:-translate-y-1 transition-transform cursor-pointer relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-transparent via-tertiary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex items-center justify-between mb-sm">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Potential</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Total Candidates</span>
               <div className="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center">
                 <span className="material-symbols-outlined text-on-tertiary-container text-[18px]">find_in_page</span>
               </div>
             </div>
-            <span className="font-headline-xl text-headline-xl text-on-surface">3,821</span>
-            <div className="mt-xs font-body-sm text-body-sm text-tertiary">+142 since last week</div>
+            <span className="font-headline-xl text-headline-xl text-on-surface">
+              {summary ? summary.totalCandidates.toLocaleString() : "--"}
+            </span>
+            <div className="mt-xs font-body-sm text-body-sm text-tertiary">
+              {summary ? `${summary.scoredCandidates} pairs scored` : "Scoring active"}
+            </div>
           </div>
 
           <div className="flex flex-col p-md bg-surface-container rounded-2xl shadow-sm hover:-translate-y-1 transition-transform cursor-pointer relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-transparent via-secondary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex items-center justify-between mb-sm">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Confirmed</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">High Confidence</span>
               <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-secondary-container text-[18px]">done_all</span>
+                <span className="material-symbols-outlined text-on-secondary-container text-[18px]">auto_awesome</span>
               </div>
             </div>
-            <span className="font-headline-xl text-headline-xl text-on-surface">2,940</span>
-            <div className="mt-xs font-body-sm text-body-sm text-secondary">85% auto-merged</div>
+            <span className="font-headline-xl text-headline-xl text-on-surface">
+              {summary ? summary.highConfidenceCount.toLocaleString() : "--"}
+            </span>
+            <div className="mt-xs font-body-sm text-body-sm text-secondary">
+              {summary ? `${summary.mediumConfidenceCount} medium, ${summary.lowConfidenceCount} low` : ""}
+            </div>
           </div>
 
           <div className="flex flex-col p-md bg-primary-container rounded-2xl shadow-md hover:-translate-y-1 transition-transform cursor-pointer relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex items-center justify-between mb-sm">
-              <span className="font-label-sm text-label-sm text-on-primary-container uppercase tracking-widest">Under Review</span>
+              <span className="font-label-sm text-label-sm text-on-primary-container uppercase tracking-widest">Avg Confidence</span>
               <div className="w-8 h-8 rounded-full bg-on-primary-container/20 flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-primary-container text-[18px] animate-spin" style={{ animationDuration: "4s" }}>sync</span>
+                <span className="material-symbols-outlined text-on-primary-container text-[18px]">analytics</span>
               </div>
             </div>
-            <span className="font-headline-xl text-headline-xl text-on-primary-container">881</span>
-            <div className="mt-xs font-body-sm text-body-sm text-on-primary-container/80">Require manual intervention</div>
+            <span className="font-headline-xl text-headline-xl text-on-primary-container">
+              {summary ? `${(summary.averageOverallScore * 100).toFixed(1)}%` : "--"}
+            </span>
+            <div className="mt-xs font-body-sm text-body-sm text-on-primary-container/80">
+              {summary ? `Min: ${(summary.minimumScore * 100).toFixed(1)}% | Max: ${(summary.maximumScore * 100).toFixed(1)}%` : ""}
+            </div>
           </div>
         </div>
 
-        {/* Filter and Actions Section */}
         <section className="flex flex-col gap-sm mt-md">
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between bg-surface-container p-md rounded-2xl shadow-sm gap-md">
-            <div className="flex items-center gap-md">
-              <span className="material-symbols-outlined text-on-surface-variant">filter_list</span>
-              <div className="flex flex-wrap gap-sm">
-                <div className="bg-surface px-sm py-xs rounded-lg flex items-center gap-xs cursor-pointer hover:bg-surface-bright transition-colors">
-                  <span className="font-label-sm text-label-sm text-on-surface">Similarity: &gt;90%</span>
-                  <span className="material-symbols-outlined text-[14px] text-on-surface-variant">expand_more</span>
-                </div>
-                <div className="bg-surface px-sm py-xs rounded-lg flex items-center gap-xs cursor-pointer hover:bg-surface-bright transition-colors">
-                  <span className="font-label-sm text-label-sm text-on-surface">Brand: All</span>
-                  <span className="material-symbols-outlined text-[14px] text-on-surface-variant">expand_more</span>
-                </div>
-                <div className="bg-surface px-sm py-xs rounded-lg flex items-center gap-xs cursor-pointer hover:bg-surface-bright transition-colors">
-                  <span className="font-label-sm text-label-sm text-on-surface">Category: Electronics</span>
-                  <span className="material-symbols-outlined text-[14px] text-on-surface-variant">expand_more</span>
-                </div>
+            <div className="flex flex-wrap items-center gap-md flex-1">
+              <div className="relative flex-1 min-w-[200px] max-w-md">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+                <input
+                  type="text"
+                  placeholder="Search by title or ASIN..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full bg-surface pl-10 pr-4 py-2 rounded-xl text-body-sm text-on-surface placeholder:text-on-surface-variant/60 border border-outline-variant/20 focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              <div className="flex items-center gap-sm">
+                <select
+                  value={minScore !== undefined ? minScore.toString() : ""}
+                  onChange={(e) => {
+                    const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                    setMinScore(val);
+                    setPage(1);
+                  }}
+                  className="bg-surface px-sm py-2 rounded-xl font-label-sm text-label-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="">All Confidence Levels</option>
+                  <option value="0.55">&gt; 55% High Confidence</option>
+                  <option value="0.50">&gt; 50% Confidence</option>
+                  <option value="0.40">&gt; 40% Confidence</option>
+                </select>
+
+                <select
+                  value={brandFilter}
+                  onChange={(e) => {
+                    setBrandFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="bg-surface px-sm py-2 rounded-xl font-label-sm text-label-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="">All Brands</option>
+                  <option value="AmazonBasics">AmazonBasics</option>
+                  <option value="Stone & Beam">Stone & Beam</option>
+                  <option value="Rivet">Rivet</option>
+                  <option value="Ravenna Home">Ravenna Home</option>
+                  <option value="365 Everyday Value">365 Everyday Value</option>
+                  <option value="Solimo">Solimo</option>
+                  <option value="find.">find.</option>
+                </select>
               </div>
             </div>
 
-            <div className="flex items-center gap-sm">
-              <button className="bg-surface text-on-surface px-md py-sm rounded-lg font-label-md text-label-md hover:bg-surface-bright transition-colors border border-outline-variant/30 flex items-center gap-xs">
-                <span className="material-symbols-outlined text-[18px]">download</span> Export
-              </button>
-              <button className="bg-primary text-on-primary px-md py-sm rounded-lg font-label-md text-label-md hover:bg-primary-fixed-dim transition-colors shadow-sm flex items-center gap-xs">
-                <span className="material-symbols-outlined text-[18px]">auto_awesome</span> Auto-Resolve &gt;98%
-              </button>
+            <div className="flex items-center gap-sm text-on-surface-variant font-label-sm text-label-sm">
+              <span>Showing {candidates.length} of {totalCount} pairs</span>
             </div>
           </div>
 
-          {/* Table */}
+          {error && (
+            <div className="p-md bg-error-container/20 border border-error/30 text-error rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-sm">
+                <span className="material-symbols-outlined">error</span>
+                <span>{error}</span>
+              </div>
+              <button
+                onClick={loadCandidates}
+                className="px-sm py-1 rounded-lg bg-error text-on-error font-label-sm hover:opacity-90 transition-opacity"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           <div className="bg-surface-container rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -94,192 +217,210 @@ export const DuplicateQueuePage: React.FC = () => {
                   <tr className="bg-surface-container-high border-b border-surface-container-lowest">
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold">Product A</th>
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold">Product B</th>
-                    <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold text-center">AI Confidence</th>
+                    <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold text-center">Confidence</th>
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold">Match Signals</th>
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold">Status</th>
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="font-body-sm text-body-sm">
-                  {/* Row 1 */}
-                  <tr
-                    onClick={() => navigate("/duplicates/1")}
-                    className="border-b border-surface-container-lowest hover:bg-surface transition-colors group cursor-pointer"
-                  >
-                    <td className="p-md">
-                      <div className="flex items-center gap-sm">
-                        <div
-                          className="w-10 h-10 rounded-lg bg-surface flex-shrink-0 bg-cover bg-center"
-                          style={{
-                            backgroundImage:
-                              "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAjt0W3864e6ldM4wSeXybh6HRezB4GT9NCXhcmzZI2W0KzADbRJCoCLdb34yC5AiwsjpGChfDoYw4x3oL8wly0257UOuHuUcHLezF30ZE8PiZ8rEhntSS_JK1PwvCapDa5ScyRRvqK-f4qobq_Uy6AkTEbSRSYzW27RitVWFdwOv-6Tnu_E58TMyehjpq6hvs0nuNNrHGXDZ5rpKtpbLAcwCLRMgUWWpCPgCz0gSOzRgMjchr4Kf-B')",
-                          }}
-                        ></div>
-                        <div>
-                          <div className="font-label-md text-label-md text-on-surface truncate w-48" title="Sony WH-1000XM5 Wireless Headphones">
-                            Sony WH-1000XM5...
-                          </div>
-                          <div className="text-on-surface-variant text-[12px] font-mono mt-xs">SKU: SNY-XM5-BLK</div>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="p-xl text-center text-on-surface-variant">
+                        <div className="flex flex-col items-center justify-center gap-sm">
+                          <span className="material-symbols-outlined text-[32px] animate-spin text-primary">progress_activity</span>
+                          <span>Loading duplicate candidates...</span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-md">
-                      <div className="flex items-center gap-sm">
-                        <div
-                          className="w-10 h-10 rounded-lg bg-surface flex-shrink-0 bg-cover bg-center"
-                          style={{
-                            backgroundImage:
-                              "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCwkfFXqMML152XrLbavxRLGUFvBeLMeF0b7nCC4TxeMnH_cVWLcyQZG_lCzz3lNgiRqhJB4E9yNz1FNOvzTgbitxA9dD9d9769FipyFSp3gp5sTim_xYVbskPMKpyZ7x0iT70Q-rdu6ab_N2wOMTfbS82U3VRItcYVsCMfetL7qx9ElOafZNfvRM6gZ2CnPS1FZgHX7x_VztfmSoBy2FCGANV3GIUJSCRtLlZoJFCEoCWZ3JJBQl5V')",
-                          }}
-                        ></div>
-                        <div>
-                          <div className="font-label-md text-label-md text-on-surface truncate w-48" title="Sony WH1000XM5 Black Over-Ear">
-                            Sony WH1000XM5 Blk...
-                          </div>
-                          <div className="text-on-surface-variant text-[12px] font-mono mt-xs">SKU: 9021-SNY</div>
+                      </td>
+                    </tr>
+                  ) : candidates.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-xl text-center text-on-surface-variant">
+                        <div className="flex flex-col items-center justify-center gap-sm">
+                          <span className="material-symbols-outlined text-[48px] text-outline">search_off</span>
+                          <span className="font-headline-sm text-on-surface">No duplicate candidates found</span>
+                          <span className="text-body-sm max-w-sm">Try adjusting your filters or search term to view candidates.</span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-md text-center align-middle">
-                      <div className="inline-flex items-center justify-center relative w-12 h-12">
-                        <svg className="w-12 h-12 transform -rotate-90">
-                          <circle className="text-surface-container-highest" cx="24" cy="24" fill="transparent" r="20" stroke="currentColor" strokeWidth="4"></circle>
-                          <circle
-                            className="text-primary transition-all duration-1000"
-                            cx="24"
-                            cy="24"
-                            fill="transparent"
-                            r="20"
-                            stroke="currentColor"
-                            strokeDasharray="125.6"
-                            strokeDashoffset="3.76"
-                            strokeWidth="4"
-                          ></circle>
-                        </svg>
-                        <span className="absolute inset-0 flex items-center justify-center font-label-sm text-label-sm text-on-surface">97%</span>
-                      </div>
-                    </td>
-                    <td className="p-md">
-                      <div className="flex flex-wrap gap-xs max-w-xs">
-                        <span className="bg-primary-container/20 text-on-primary-container px-2 py-1 rounded text-[10px] font-label-sm flex items-center gap-[2px]">
-                          Brand <span className="material-symbols-outlined text-[12px]">check</span>
-                        </span>
-                        <span className="bg-primary-container/20 text-on-primary-container px-2 py-1 rounded text-[10px] font-label-sm flex items-center gap-[2px]">
-                          Model <span className="material-symbols-outlined text-[12px]">check</span>
-                        </span>
-                        <span className="bg-surface text-on-surface-variant px-2 py-1 rounded text-[10px] font-mono">Sem: 94%</span>
-                        <span className="bg-surface text-on-surface-variant px-2 py-1 rounded text-[10px] font-mono">Img: 91%</span>
-                      </div>
-                    </td>
-                    <td className="p-md">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-tertiary-container/20 text-on-tertiary-container font-label-sm text-[11px] gap-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span> Under Review
-                      </span>
-                    </td>
-                    <td className="p-md text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="w-8 h-8 rounded-full bg-error-container text-on-error-container flex items-center justify-center hover:bg-error hover:text-on-error transition-colors" title="Reject Match">
-                          <span className="material-symbols-outlined text-[18px]">close</span>
-                        </button>
-                        <button className="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center hover:bg-secondary hover:text-on-secondary transition-colors" title="Confirm Match">
-                          <span className="material-symbols-outlined text-[18px]">check</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                  ) : (
+                    candidates.map((c) => {
+                      const signals = parseSignals(c.matchSignals);
+                      const pct = Math.round(c.overallScore * 100);
+                      const strokeDash = 125.6;
+                      const strokeOffset = strokeDash - (strokeDash * pct) / 100;
 
-                  {/* Row 2 */}
-                  <tr
-                    onClick={() => navigate("/duplicates/1")}
-                    className="border-b border-surface-container-lowest hover:bg-surface transition-colors group cursor-pointer"
-                  >
-                    <td className="p-md">
-                      <div className="flex items-center gap-sm">
-                        <div
-                          className="w-10 h-10 rounded-lg bg-surface flex-shrink-0 bg-cover bg-center"
-                          style={{
-                            backgroundImage:
-                              "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAdTe2gBhchg8pjP8PMp-rZdC0vxmB7uFDEPd8sVBdJwskhzaQqLyyJD6MEG_1ID0Igt_z-MxxWqkwhQwmEYfzIM5IKqbKMiTr6vreKwjKNVlJoYYG55ijG_Vi6n2jw0LMvOBAFA_B45-P4PxAAsie7SPCsE5h6Fy0FqU1TDX8x4JWR5ZgsxJraCBz1uaRgTj8wGyHXE3I5ELnrT9MRpVnsbQvGWYVRSpFNhCIsdJDrUUkKtDk2Nhtm')",
-                          }}
-                        ></div>
-                        <div>
-                          <div className="font-label-md text-label-md text-on-surface truncate w-48" title="Breville Barista Express Espresso Machine">
-                            Breville Barista Exp...
-                          </div>
-                          <div className="text-on-surface-variant text-[12px] font-mono mt-xs">SKU: BES870XL</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-md">
-                      <div className="flex items-center gap-sm">
-                        <div
-                          className="w-10 h-10 rounded-lg bg-surface flex-shrink-0 bg-cover bg-center"
-                          style={{
-                            backgroundImage:
-                              "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAPigB4IvpKICmsOilJbjeiFSTlPU2ADbYAeL9xk01Gd_eMuPWKA6RPJb9nBXokyK_Zl7qMfwSd14clls0qNtvBe4fE0swnKVx0Hp7LgalvMd-ukrgYra5GnR7J5ZOyvCbPYc7OXXc40gJ5-Qza1TQG5Oi1DecAX85aHInD0onWdVcvSZQijbeXmNXm19ri5QZSPL41EHKzTiRieg7Kgp1rjLYEvfAncG-5I-6yewqGrB9C1ATQCeco')",
-                          }}
-                        ></div>
-                        <div>
-                          <div className="font-label-md text-label-md text-on-surface truncate w-48" title="Breville Espresso Maker BES870">
-                            Breville Espresso Maker...
-                          </div>
-                          <div className="text-on-surface-variant text-[12px] font-mono mt-xs">SKU: BRV-870-SS</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-md text-center align-middle">
-                      <div className="inline-flex items-center justify-center relative w-12 h-12">
-                        <svg className="w-12 h-12 transform -rotate-90">
-                          <circle className="text-surface-container-highest" cx="24" cy="24" fill="transparent" r="20" stroke="currentColor" strokeWidth="4"></circle>
-                          <circle
-                            className="text-primary transition-all duration-1000"
-                            cx="24"
-                            cy="24"
-                            fill="transparent"
-                            r="20"
-                            stroke="currentColor"
-                            strokeDasharray="125.6"
-                            strokeDashoffset="13.8"
-                            strokeWidth="4"
-                          ></circle>
-                        </svg>
-                        <span className="absolute inset-0 flex items-center justify-center font-label-sm text-label-sm text-on-surface">89%</span>
-                      </div>
-                    </td>
-                    <td className="p-md">
-                      <div className="flex flex-wrap gap-xs max-w-xs">
-                        <span className="bg-primary-container/20 text-on-primary-container px-2 py-1 rounded text-[10px] font-label-sm flex items-center gap-[2px]">
-                          Brand <span className="material-symbols-outlined text-[12px]">check</span>
-                        </span>
-                        <span className="bg-surface text-on-surface-variant px-2 py-1 rounded text-[10px] font-mono">Mod: 78%</span>
-                        <span className="bg-surface text-on-surface-variant px-2 py-1 rounded text-[10px] font-mono">Sem: 91%</span>
-                        <span className="bg-surface text-on-surface-variant px-2 py-1 rounded text-[10px] font-mono">Img: 89%</span>
-                      </div>
-                    </td>
-                    <td className="p-md">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-tertiary-container/20 text-on-tertiary-container font-label-sm text-[11px] gap-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span> Under Review
-                      </span>
-                    </td>
-                    <td className="p-md text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="w-8 h-8 rounded-full bg-error-container text-on-error-container flex items-center justify-center hover:bg-error hover:text-on-error transition-colors" title="Reject Match">
-                          <span className="material-symbols-outlined text-[18px]">close</span>
-                        </button>
-                        <button className="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center hover:bg-secondary hover:text-on-secondary transition-colors" title="Confirm Match">
-                          <span className="material-symbols-outlined text-[18px]">check</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => navigate(`/duplicates/${c.id}`)}
+                          className="border-b border-surface-container-lowest hover:bg-surface transition-colors group cursor-pointer"
+                        >
+                          <td className="p-md">
+                            <div className="flex items-center gap-sm">
+                              <div
+                                className="w-12 h-12 rounded-xl bg-surface flex-shrink-0 bg-contain bg-center bg-no-repeat border border-outline-variant/10"
+                                style={{
+                                  backgroundImage: c.productA?.mainImageUrl
+                                    ? `url('${c.productA.mainImageUrl}')`
+                                    : undefined,
+                                }}
+                              >
+                                {!c.productA?.mainImageUrl && (
+                                  <div className="w-full h-full flex items-center justify-center text-outline">
+                                    <span className="material-symbols-outlined text-[20px]">image</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-col max-w-[220px]">
+                                <div className="font-label-md text-label-md text-on-surface truncate" title={c.productA?.name}>
+                                  {c.productA?.name || "Unknown Product"}
+                                </div>
+                                <div className="text-on-surface-variant text-[12px] font-mono mt-xs flex items-center gap-xs">
+                                  <span>{c.productA?.amazonItemId}</span>
+                                  {c.productA?.brand && (
+                                    <span className="px-1.5 py-0.5 rounded bg-surface-container-high text-[10px] text-on-surface">
+                                      {c.productA.brand}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-md">
+                            <div className="flex items-center gap-sm">
+                              <div
+                                className="w-12 h-12 rounded-xl bg-surface flex-shrink-0 bg-contain bg-center bg-no-repeat border border-outline-variant/10"
+                                style={{
+                                  backgroundImage: c.productB?.mainImageUrl
+                                    ? `url('${c.productB.mainImageUrl}')`
+                                    : undefined,
+                                }}
+                              >
+                                {!c.productB?.mainImageUrl && (
+                                  <div className="w-full h-full flex items-center justify-center text-outline">
+                                    <span className="material-symbols-outlined text-[20px]">image</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-col max-w-[220px]">
+                                <div className="font-label-md text-label-md text-on-surface truncate" title={c.productB?.name}>
+                                  {c.productB?.name || "Unknown Product"}
+                                </div>
+                                <div className="text-on-surface-variant text-[12px] font-mono mt-xs flex items-center gap-xs">
+                                  <span>{c.productB?.amazonItemId}</span>
+                                  {c.productB?.brand && (
+                                    <span className="px-1.5 py-0.5 rounded bg-surface-container-high text-[10px] text-on-surface">
+                                      {c.productB.brand}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-md text-center align-middle">
+                            <div className="inline-flex items-center justify-center relative w-12 h-12">
+                              <svg className="w-12 h-12 transform -rotate-90">
+                                <circle className="text-surface-container-highest" cx="24" cy="24" fill="transparent" r="20" stroke="currentColor" strokeWidth="4"></circle>
+                                <circle
+                                  className={getScoreColor(c.overallScore)}
+                                  cx="24"
+                                  cy="24"
+                                  fill="transparent"
+                                  r="20"
+                                  stroke="currentColor"
+                                  strokeDasharray={strokeDash}
+                                  strokeDashoffset={strokeOffset}
+                                  strokeWidth="4"
+                                ></circle>
+                              </svg>
+                              <span className="absolute inset-0 flex items-center justify-center font-label-sm text-label-sm font-bold text-on-surface">
+                                {pct}%
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="p-md">
+                            <div className="flex flex-wrap gap-xs max-w-xs">
+                              {c.brandMatch && (
+                                <span className="bg-primary-container/30 text-on-primary-container px-2 py-0.5 rounded text-[10px] font-label-sm flex items-center gap-[2px]">
+                                  Brand <span className="material-symbols-outlined text-[12px]">check</span>
+                                </span>
+                              )}
+                              {signals?.category_match && (
+                                <span className="bg-secondary-container/30 text-on-secondary-container px-2 py-0.5 rounded text-[10px] font-label-sm flex items-center gap-[2px]">
+                                  Category <span className="material-symbols-outlined text-[12px]">check</span>
+                                </span>
+                              )}
+                              {signals?.text_similarity !== undefined && (
+                                <span className="bg-surface-container-high text-on-surface px-2 py-0.5 rounded text-[10px] font-mono">
+                                  Text: {Math.round(signals.text_similarity * 100)}%
+                                </span>
+                              )}
+                              {signals?.semantic_similarity !== undefined && (
+                                <span className="bg-surface-container-high text-on-surface px-2 py-0.5 rounded text-[10px] font-mono">
+                                  Sem: {Math.round(signals.semantic_similarity * 100)}%
+                                </span>
+                              )}
+                              {signals?.attribute_similarity !== undefined && signals.attribute_similarity > 0 && (
+                                <span className="bg-surface-container-high text-on-surface px-2 py-0.5 rounded text-[10px] font-mono">
+                                  Attr: {Math.round(signals.attribute_similarity * 100)}%
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="p-md">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-tertiary-container/20 text-on-tertiary-container font-label-sm text-[11px] gap-xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span> Potential
+                            </span>
+                          </td>
+
+                          <td className="p-md text-right">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/duplicates/${c.id}`);
+                              }}
+                              className="px-sm py-1.5 rounded-xl bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface font-label-sm text-label-sm transition-colors flex items-center gap-xs ml-auto shadow-sm"
+                            >
+                              <span>Analyze</span>
+                              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
-            <div className="p-sm flex justify-center bg-surface-container-high border-t border-surface-container-lowest">
-              <button className="text-primary hover:text-primary-fixed font-label-sm text-label-sm flex items-center gap-xs transition-colors">
-                Load More <span className="material-symbols-outlined text-[16px]">expand_more</span>
-              </button>
-            </div>
+
+            {totalPages > 1 && (
+              <div className="p-md flex items-center justify-between bg-surface-container-high border-t border-surface-container-lowest">
+                <span className="font-body-sm text-body-sm text-on-surface-variant">
+                  Page {page} of {totalPages} ({totalCount} total candidates)
+                </span>
+                <div className="flex items-center gap-xs">
+                  <button
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="px-sm py-1 rounded-lg bg-surface text-on-surface font-label-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-bright transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-sm py-1 rounded-lg bg-surface text-on-surface font-label-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-bright transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </div>
