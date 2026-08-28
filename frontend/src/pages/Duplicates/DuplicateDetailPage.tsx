@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fetchDuplicateCandidateById } from "../../services/duplicateService";
-import type { DuplicateCandidateDetail } from "../../types/duplicate";
+import {
+  fetchDuplicateCandidateById,
+  confirmDuplicateCandidate,
+  rejectDuplicateCandidate,
+  updateCandidateStatus,
+} from "../../services/duplicateService";
+import type { DuplicateCandidateDetail, DuplicateStatus } from "../../types/duplicate";
 
 export const DuplicateDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -9,9 +14,12 @@ export const DuplicateDetailPage: React.FC = () => {
 
   const [candidate, setCandidate] = useState<DuplicateCandidateDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [resolutionNotes, setResolutionNotes] = useState<string>("");
 
-  useEffect(() => {
+  const loadCandidate = useCallback(async () => {
     if (!id) {
       setError("Candidate ID is missing.");
       setLoading(false);
@@ -21,17 +29,67 @@ export const DuplicateDetailPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    fetchDuplicateCandidateById(id)
-      .then((data) => {
-        setCandidate(data);
-      })
-      .catch((err: any) => {
-        setError(err.message || "Failed to load candidate details.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    try {
+      const data = await fetchDuplicateCandidateById(id);
+      setCandidate(data);
+      if (data.resolutionNotes) {
+        setResolutionNotes(data.resolutionNotes);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load candidate details.");
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadCandidate();
+  }, [loadCandidate]);
+
+  const handleConfirm = async () => {
+    if (!id) return;
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      const updated = await confirmDuplicateCandidate(id, resolutionNotes.trim() || undefined);
+      setCandidate(updated);
+      setFeedback({ type: "success", message: "Duplicate pair confirmed successfully in database." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Failed to confirm duplicate." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!id) return;
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      const updated = await rejectDuplicateCandidate(id, resolutionNotes.trim() || undefined);
+      setCandidate(updated);
+      setFeedback({ type: "success", message: "Candidate pair marked as Not a Duplicate (Rejected)." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Failed to reject duplicate." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetToPending = async () => {
+    if (!id) return;
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      const updated = await updateCandidateStatus(id, 0 as DuplicateStatus, resolutionNotes.trim() || undefined);
+      setCandidate(updated);
+      setFeedback({ type: "success", message: "Candidate reset back to Pending Review status." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Failed to reset status." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const parseSignals = (matchSignals: string | null) => {
     if (!matchSignals) return null;
@@ -64,7 +122,7 @@ export const DuplicateDetailPage: React.FC = () => {
           className="px-md py-sm bg-primary text-on-primary rounded-xl font-label-md hover:bg-primary-fixed-dim transition-colors flex items-center gap-xs mt-sm"
         >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Back to Duplicate Detection
+          Back to Duplicate Queue
         </button>
       </div>
     );
@@ -86,29 +144,103 @@ export const DuplicateDetailPage: React.FC = () => {
     <div className="flex flex-col w-full relative">
       <div className="absolute top-0 right-0 w-3/4 h-[800px] bg-gradient-radial from-primary/5 via-primary/[0.02] to-transparent pointer-events-none mix-blend-screen transform translate-x-1/4 -translate-y-1/4 z-0"></div>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-md mb-xl relative z-10 w-full max-w-screen-2xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-md mb-md relative z-10 w-full max-w-screen-2xl mx-auto">
         <div className="flex flex-col gap-xs">
           <div className="flex items-center gap-xs font-label-sm text-label-sm text-outline uppercase tracking-[0.1em]">
             <span onClick={() => navigate("/duplicates")} className="hover:text-on-background transition-colors cursor-pointer flex items-center gap-xs">
               <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-              Duplicates
+              Duplicate Queue
             </span>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary font-bold">Analysis</span>
+            <span className="text-primary font-bold">Review & Decision</span>
           </div>
           <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Analysis</h1>
         </div>
 
-        <div className="flex items-center gap-md">
+        <div className="flex flex-wrap items-center gap-sm">
+          {candidate.status === 1 ? (
+            <div className="flex items-center gap-sm">
+              <span className="px-md py-sm rounded-xl font-label-md text-label-md bg-secondary-container text-on-secondary-container flex items-center gap-xs font-bold shadow-sm">
+                <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                Confirmed Duplicate
+              </span>
+              <button
+                disabled={isSubmitting}
+                onClick={handleResetToPending}
+                className="px-md py-sm rounded-xl font-label-md text-label-md border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >
+                Re-open
+              </button>
+            </div>
+          ) : candidate.status === 2 ? (
+            <div className="flex items-center gap-sm">
+              <span className="px-md py-sm rounded-xl font-label-md text-label-md bg-error-container/20 text-error flex items-center gap-xs font-bold border border-error/30">
+                <span className="material-symbols-outlined text-[18px]">cancel</span>
+                Rejected (Not a Duplicate)
+              </span>
+              <button
+                disabled={isSubmitting}
+                onClick={handleResetToPending}
+                className="px-md py-sm rounded-xl font-label-md text-label-md border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >
+                Re-open
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-sm">
+              <button
+                disabled={isSubmitting}
+                onClick={handleReject}
+                className="px-md py-sm rounded-xl font-label-md text-label-md bg-error-container/20 text-error hover:bg-error-container/40 transition-colors border border-error/30 flex items-center gap-xs disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+                Not a Duplicate
+              </button>
+              <button
+                disabled={isSubmitting}
+                onClick={handleConfirm}
+                className="px-md py-sm rounded-xl font-label-md text-label-md bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary transition-colors shadow-md flex items-center gap-xs font-bold disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+                Confirm Duplicate
+              </button>
+            </div>
+          )}
+
+          <div className="h-8 w-px bg-outline-variant/20 hidden md:block"></div>
+
           <button
             onClick={() => navigate("/duplicates")}
-            className="px-md py-sm rounded-xl font-label-md text-label-md border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-base"
+            className="px-md py-sm rounded-xl font-label-md text-label-md border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-xs"
           >
             <span className="material-symbols-outlined text-[18px]">list</span>
-            Back to Queue
+            Queue
           </button>
         </div>
       </div>
+
+      {feedback && (
+        <div
+          className={`mb-md p-md rounded-2xl border flex items-center justify-between transition-all ${
+            feedback.type === "success"
+              ? "bg-secondary-container/20 border-secondary/30 text-on-surface"
+              : "bg-error-container/20 border-error/30 text-error"
+          }`}
+        >
+          <div className="flex items-center gap-sm">
+            <span className="material-symbols-outlined">
+              {feedback.type === "success" ? "check_circle" : "error"}
+            </span>
+            <span className="font-body-md text-body-md">{feedback.message}</span>
+          </div>
+          <button
+            onClick={() => setFeedback(null)}
+            className="text-on-surface-variant hover:text-on-surface"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      )}
 
       <div className="w-full max-w-screen-2xl mx-auto grid grid-cols-1 xl:grid-cols-12 gap-lg relative z-10">
         <div className="xl:col-span-8 flex flex-col gap-lg">
@@ -314,7 +446,7 @@ export const DuplicateDetailPage: React.FC = () => {
                   <div className="h-full bg-tertiary rounded-full transition-all duration-700" style={{ width: `${textPct}%` }}></div>
                 </div>
                 <p className="font-body-sm text-body-sm text-outline">
-                  Token overlap and character composition across title, model, and description.
+                  Token overlap across title, model, and description.
                 </p>
               </div>
 
@@ -370,17 +502,30 @@ export const DuplicateDetailPage: React.FC = () => {
         </div>
 
         <div className="xl:col-span-4 flex flex-col gap-lg">
+          <div className="bg-surface-container-low rounded-[24px] p-lg border border-outline-variant/10 flex flex-col gap-md">
+            <h3 className="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-xs">Review Notes & Resolution</h3>
+            <div className="flex flex-col gap-sm">
+              <textarea
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                placeholder="Add optional notes explaining your resolution decision..."
+                rows={3}
+                className="w-full bg-surface p-sm rounded-xl text-body-sm text-on-surface placeholder:text-on-surface-variant/60 border border-outline-variant/20 focus:outline-none focus:border-primary transition-colors resize-none"
+              />
+              <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
+                <span>{candidate.reviewedAt ? `Last reviewed: ${new Date(candidate.reviewedAt).toLocaleString()}` : "Not yet reviewed"}</span>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-primary/5 rounded-[24px] p-lg border border-primary/20 relative overflow-hidden">
             <div className="relative z-10 flex flex-col gap-md">
               <div className="flex items-center gap-sm mb-xs">
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                   <span className="material-symbols-outlined text-primary text-[18px]">auto_awesome</span>
                 </div>
-                <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest">Scoring Summary</span>
+                <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest">Candidate Info</span>
               </div>
-              <p className="font-body-md text-body-md text-on-background leading-relaxed">
-                Candidate pair scored <strong className="text-primary font-bold">{overallPct}%</strong> composite duplicate confidence.
-              </p>
               <div className="p-md bg-surface-container-lowest/60 rounded-xl border border-outline-variant/10 font-mono text-[12px] text-on-surface-variant flex flex-col gap-xs">
                 <div className="flex justify-between">
                   <span>Candidate ID:</span>
@@ -388,7 +533,9 @@ export const DuplicateDetailPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span>Status:</span>
-                  <span className="text-tertiary font-bold">Potential Candidate</span>
+                  <span className={`font-bold ${candidate.status === 1 ? "text-secondary" : candidate.status === 2 ? "text-error" : "text-tertiary"}`}>
+                    {candidate.status === 1 ? "Confirmed" : candidate.status === 2 ? "Rejected" : "Pending Review"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Overall Score:</span>

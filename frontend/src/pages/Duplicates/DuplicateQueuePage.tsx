@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchDuplicateCandidates, fetchDuplicateSummary } from "../../services/duplicateService";
-import type { DuplicateCandidateSummary, DuplicateCandidatesSummary } from "../../types/duplicate";
+import {
+  fetchDuplicateCandidates,
+  fetchDuplicateSummary,
+  confirmDuplicateCandidate,
+  rejectDuplicateCandidate,
+} from "../../services/duplicateService";
+import type {
+  DuplicateCandidateSummary,
+  DuplicateCandidatesSummary,
+  DuplicateStatus,
+} from "../../types/duplicate";
 
 export const DuplicateQueuePage: React.FC = () => {
   const navigate = useNavigate();
@@ -10,12 +19,14 @@ export const DuplicateQueuePage: React.FC = () => {
   const [summary, setSummary] = useState<DuplicateCandidatesSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(10);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
 
+  const [statusFilter, setStatusFilter] = useState<DuplicateStatus | undefined>(undefined);
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [search, setSearch] = useState<string>("");
   const [brandFilter, setBrandFilter] = useState<string>("");
@@ -35,6 +46,7 @@ export const DuplicateQueuePage: React.FC = () => {
       const res = await fetchDuplicateCandidates({
         page,
         pageSize,
+        status: statusFilter,
         minScore,
         search: search.trim() || undefined,
         brand: brandFilter.trim() || undefined,
@@ -50,7 +62,7 @@ export const DuplicateQueuePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, minScore, search, brandFilter]);
+  }, [page, pageSize, statusFilter, minScore, search, brandFilter]);
 
   useEffect(() => {
     loadSummary();
@@ -59,6 +71,32 @@ export const DuplicateQueuePage: React.FC = () => {
   useEffect(() => {
     loadCandidates();
   }, [loadCandidates]);
+
+  const handleQuickConfirm = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setActionLoadingId(id);
+    try {
+      await confirmDuplicateCandidate(id);
+      await Promise.all([loadCandidates(), loadSummary()]);
+    } catch (err: any) {
+      setError(err.message || "Failed to confirm duplicate.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleQuickReject = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setActionLoadingId(id);
+    try {
+      await rejectDuplicateCandidate(id);
+      await Promise.all([loadCandidates(), loadSummary()]);
+    } catch (err: any) {
+      setError(err.message || "Failed to reject duplicate.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   const parseSignals = (matchSignals: string | null) => {
     if (!matchSignals) return null;
@@ -70,9 +108,39 @@ export const DuplicateQueuePage: React.FC = () => {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 0.55) return "text-primary stroke-primary bg-primary-container/20 text-on-primary-container";
-    if (score >= 0.45) return "text-tertiary stroke-tertiary bg-tertiary-container/20 text-on-tertiary-container";
-    return "text-secondary stroke-secondary bg-secondary-container/20 text-on-secondary-container";
+    if (score >= 0.55) return "text-primary stroke-primary";
+    if (score >= 0.45) return "text-tertiary stroke-tertiary";
+    return "text-secondary stroke-secondary";
+  };
+
+  const renderStatusBadge = (status: DuplicateStatus) => {
+    switch (status) {
+      case 1:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-[11px] font-semibold gap-xs">
+            <span className="material-symbols-outlined text-[14px]">check_circle</span> Confirmed
+          </span>
+        );
+      case 2:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-error-container/20 text-error font-label-sm text-[11px] font-semibold gap-xs border border-error/20">
+            <span className="material-symbols-outlined text-[14px]">cancel</span> Rejected
+          </span>
+        );
+      case 3:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-primary-container text-on-primary-container font-label-sm text-[11px] font-semibold gap-xs">
+            <span className="material-symbols-outlined text-[14px]">merge_type</span> Merged
+          </span>
+        );
+      case 0:
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-tertiary-container/30 text-on-tertiary-container font-label-sm text-[11px] font-semibold gap-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span> Pending Review
+          </span>
+        );
+    }
   };
 
   return (
@@ -81,58 +149,99 @@ export const DuplicateQueuePage: React.FC = () => {
 
       <div className="flex flex-col gap-lg z-10">
         <header className="flex flex-col gap-xs mb-md">
-          <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Detection</h1>
+          <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Review Queue</h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
-            Review product pairs detected by the automated matching pipeline with multi-signal similarity scores.
+            Review, confirm, or reject potential duplicate product pairs detected by the automated matching pipeline.
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
-          <div className="flex flex-col p-md bg-surface-container rounded-2xl shadow-sm hover:-translate-y-1 transition-transform cursor-pointer relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-tertiary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-md">
+          <div
+            onClick={() => {
+              setStatusFilter(0);
+              setPage(1);
+            }}
+            className={`flex flex-col p-md rounded-2xl shadow-sm hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden group ${statusFilter === 0 ? "bg-tertiary-container/30 ring-2 ring-tertiary" : "bg-surface-container"}`}
+          >
             <div className="flex items-center justify-between mb-sm">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Total Candidates</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Pending Review</span>
               <div className="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center">
                 <span className="material-symbols-outlined text-on-tertiary-container text-[18px]">find_in_page</span>
               </div>
             </div>
             <span className="font-headline-xl text-headline-xl text-on-surface">
-              {summary ? summary.totalCandidates.toLocaleString() : "--"}
+              {summary ? summary.potentialCount.toLocaleString() : "--"}
             </span>
             <div className="mt-xs font-body-sm text-body-sm text-tertiary">
-              {summary ? `${summary.scoredCandidates} pairs scored` : "Scoring active"}
+              Awaiting operator decision
             </div>
           </div>
 
-          <div className="flex flex-col p-md bg-surface-container rounded-2xl shadow-sm hover:-translate-y-1 transition-transform cursor-pointer relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-secondary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <div
+            onClick={() => {
+              setStatusFilter(1);
+              setPage(1);
+            }}
+            className={`flex flex-col p-md rounded-2xl shadow-sm hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden group ${statusFilter === 1 ? "bg-secondary-container/30 ring-2 ring-secondary" : "bg-surface-container"}`}
+          >
             <div className="flex items-center justify-between mb-sm">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">High Confidence</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Confirmed</span>
               <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-secondary-container text-[18px]">auto_awesome</span>
+                <span className="material-symbols-outlined text-on-secondary-container text-[18px]">check_circle</span>
               </div>
             </div>
             <span className="font-headline-xl text-headline-xl text-on-surface">
-              {summary ? summary.highConfidenceCount.toLocaleString() : "--"}
+              {summary ? summary.confirmedCount.toLocaleString() : "--"}
             </span>
             <div className="mt-xs font-body-sm text-body-sm text-secondary">
-              {summary ? `${summary.mediumConfidenceCount} medium, ${summary.lowConfidenceCount} low` : ""}
+              Verified duplicate pairs
             </div>
           </div>
 
-          <div className="flex flex-col p-md bg-primary-container rounded-2xl shadow-md hover:-translate-y-1 transition-transform cursor-pointer relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <div
+            onClick={() => {
+              setStatusFilter(2);
+              setPage(1);
+            }}
+            className={`flex flex-col p-md rounded-2xl shadow-sm hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden group ${statusFilter === 2 ? "bg-error-container/20 ring-2 ring-error" : "bg-surface-container"}`}
+          >
             <div className="flex items-center justify-between mb-sm">
-              <span className="font-label-sm text-label-sm text-on-primary-container uppercase tracking-widest">Avg Confidence</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Rejected</span>
+              <div className="w-8 h-8 rounded-full bg-error-container/40 flex items-center justify-center">
+                <span className="material-symbols-outlined text-error text-[18px]">cancel</span>
+              </div>
+            </div>
+            <span className="font-headline-xl text-headline-xl text-on-surface">
+              {summary ? summary.rejectedCount.toLocaleString() : "--"}
+            </span>
+            <div className="mt-xs font-body-sm text-body-sm text-on-surface-variant">
+              Dismissed as non-duplicates
+            </div>
+          </div>
+
+          <div
+            onClick={() => {
+              setStatusFilter(undefined);
+              setPage(1);
+            }}
+            className={`flex flex-col p-md rounded-2xl shadow-md hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden group ${statusFilter === undefined ? "bg-primary-container ring-2 ring-primary" : "bg-primary-container/70"}`}
+          >
+            <div className="flex items-center justify-between mb-sm">
+              <span className="font-label-sm text-label-sm text-on-primary-container uppercase tracking-widest">Total / Avg Score</span>
               <div className="w-8 h-8 rounded-full bg-on-primary-container/20 flex items-center justify-center">
                 <span className="material-symbols-outlined text-on-primary-container text-[18px]">analytics</span>
               </div>
             </div>
-            <span className="font-headline-xl text-headline-xl text-on-primary-container">
-              {summary ? `${(summary.averageOverallScore * 100).toFixed(1)}%` : "--"}
-            </span>
+            <div className="flex items-baseline gap-sm">
+              <span className="font-headline-xl text-headline-xl text-on-primary-container">
+                {summary ? summary.totalCandidates.toLocaleString() : "--"}
+              </span>
+              <span className="font-headline-sm text-on-primary-container/80">
+                ({summary ? `${(summary.averageOverallScore * 100).toFixed(1)}%` : "--"})
+              </span>
+            </div>
             <div className="mt-xs font-body-sm text-body-sm text-on-primary-container/80">
-              {summary ? `Min: ${(summary.minimumScore * 100).toFixed(1)}% | Max: ${(summary.maximumScore * 100).toFixed(1)}%` : ""}
+              {summary ? `${summary.highConfidenceCount} high, ${summary.mediumConfidenceCount} med` : ""}
             </div>
           </div>
         </div>
@@ -154,7 +263,22 @@ export const DuplicateQueuePage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center gap-sm">
+              <div className="flex flex-wrap items-center gap-sm">
+                <select
+                  value={statusFilter !== undefined ? statusFilter.toString() : ""}
+                  onChange={(e) => {
+                    const val = e.target.value !== "" ? (parseInt(e.target.value, 10) as DuplicateStatus) : undefined;
+                    setStatusFilter(val);
+                    setPage(1);
+                  }}
+                  className="bg-surface px-sm py-2 rounded-xl font-label-sm text-label-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="0">Pending Review</option>
+                  <option value="1">Confirmed</option>
+                  <option value="2">Rejected</option>
+                </select>
+
                 <select
                   value={minScore !== undefined ? minScore.toString() : ""}
                   onChange={(e) => {
@@ -220,7 +344,7 @@ export const DuplicateQueuePage: React.FC = () => {
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold text-center">Confidence</th>
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold">Match Signals</th>
                     <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold">Status</th>
-                    <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold text-right">Action</th>
+                    <th className="p-md font-label-sm text-label-sm text-on-surface-variant font-semibold text-right">Quick Decision</th>
                   </tr>
                 </thead>
                 <tbody className="font-body-sm text-body-sm">
@@ -229,7 +353,7 @@ export const DuplicateQueuePage: React.FC = () => {
                       <td colSpan={6} className="p-xl text-center text-on-surface-variant">
                         <div className="flex flex-col items-center justify-center gap-sm">
                           <span className="material-symbols-outlined text-[32px] animate-spin text-primary">progress_activity</span>
-                          <span>Loading duplicate candidates...</span>
+                          <span>Loading duplicate review queue...</span>
                         </div>
                       </td>
                     </tr>
@@ -238,8 +362,8 @@ export const DuplicateQueuePage: React.FC = () => {
                       <td colSpan={6} className="p-xl text-center text-on-surface-variant">
                         <div className="flex flex-col items-center justify-center gap-sm">
                           <span className="material-symbols-outlined text-[48px] text-outline">search_off</span>
-                          <span className="font-headline-sm text-on-surface">No duplicate candidates found</span>
-                          <span className="text-body-sm max-w-sm">Try adjusting your filters or search term to view candidates.</span>
+                          <span className="font-headline-sm text-on-surface">No candidate pairs found</span>
+                          <span className="text-body-sm max-w-sm">No duplicates match the selected status or filters.</span>
                         </div>
                       </td>
                     </tr>
@@ -249,6 +373,7 @@ export const DuplicateQueuePage: React.FC = () => {
                       const pct = Math.round(c.overallScore * 100);
                       const strokeDash = 125.6;
                       const strokeOffset = strokeDash - (strokeDash * pct) / 100;
+                      const isActionLoading = actionLoadingId === c.id;
 
                       return (
                         <tr
@@ -364,31 +489,47 @@ export const DuplicateQueuePage: React.FC = () => {
                                   Sem: {Math.round(signals.semantic_similarity * 100)}%
                                 </span>
                               )}
-                              {signals?.attribute_similarity !== undefined && signals.attribute_similarity > 0 && (
-                                <span className="bg-surface-container-high text-on-surface px-2 py-0.5 rounded text-[10px] font-mono">
-                                  Attr: {Math.round(signals.attribute_similarity * 100)}%
-                                </span>
-                              )}
                             </div>
                           </td>
 
                           <td className="p-md">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-tertiary-container/20 text-on-tertiary-container font-label-sm text-[11px] gap-xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span> Potential
-                            </span>
+                            {renderStatusBadge(c.status)}
                           </td>
 
-                          <td className="p-md text-right">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/duplicates/${c.id}`);
-                              }}
-                              className="px-sm py-1.5 rounded-xl bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface font-label-sm text-label-sm transition-colors flex items-center gap-xs ml-auto shadow-sm"
-                            >
-                              <span>Analyze</span>
-                              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                            </button>
+                          <td className="p-md text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-xs">
+                              {isActionLoading ? (
+                                <span className="material-symbols-outlined text-[18px] animate-spin text-primary mr-sm">progress_activity</span>
+                              ) : (
+                                <>
+                                  {c.status !== 1 && (
+                                    <button
+                                      onClick={(e) => handleQuickConfirm(e, c.id)}
+                                      className="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary flex items-center justify-center transition-colors shadow-sm"
+                                      title="Confirm Duplicate"
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">check</span>
+                                    </button>
+                                  )}
+                                  {c.status !== 2 && (
+                                    <button
+                                      onClick={(e) => handleQuickReject(e, c.id)}
+                                      className="w-8 h-8 rounded-full bg-error-container/30 text-error hover:bg-error hover:text-on-error flex items-center justify-center transition-colors shadow-sm border border-error/20"
+                                      title="Reject (Not a Duplicate)"
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">close</span>
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                              <button
+                                onClick={() => navigate(`/duplicates/${c.id}`)}
+                                className="px-sm py-1.5 rounded-xl bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface font-label-sm text-label-sm transition-colors flex items-center gap-xs ml-xs shadow-sm"
+                              >
+                                <span>Detail</span>
+                                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
