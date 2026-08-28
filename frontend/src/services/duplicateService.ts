@@ -2,6 +2,7 @@ import type {
   DuplicateCandidateDetail,
   DuplicateCandidatesSummary,
   DuplicateQueryParams,
+  DuplicateStatus,
   PagedDuplicateResponse,
 } from "../types/duplicate";
 
@@ -88,6 +89,67 @@ export async function fetchDuplicateSummary(): Promise<DuplicateCandidatesSummar
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to fetch duplicate summary (${response.status}): ${errorText}`);
+  }
+
+  return await response.json();
+}
+
+export async function confirmDuplicateCandidate(
+  id: string,
+  resolutionNotes?: string
+): Promise<DuplicateCandidateDetail> {
+  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/confirm`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ resolutionNotes }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to confirm duplicate candidate (${response.status}): ${errorText}`);
+  }
+
+  return await response.json();
+}
+
+export async function rejectDuplicateCandidate(
+  id: string,
+  resolutionNotes?: string
+): Promise<DuplicateCandidateDetail> {
+  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/reject`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ resolutionNotes }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to reject duplicate candidate (${response.status}): ${errorText}`);
+  }
+
+  return await response.json();
+}
+
+export async function updateCandidateStatus(
+  id: string,
+  status: DuplicateStatus,
+  resolutionNotes?: string
+): Promise<DuplicateCandidateDetail> {
+  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status, resolutionNotes }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update candidate status (${response.status}): ${errorText}`);
   }
 
   return await response.json();

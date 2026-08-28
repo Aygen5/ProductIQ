@@ -1,6 +1,13 @@
 import type { ProductSummary, ProductDetail, PagedResponse } from "./product";
 
-export type DuplicateStatus = 1 | 2 | 3 | 4;
+export type DuplicateStatus = 0 | 1 | 2 | 3;
+
+export const DuplicateStatusEnum = {
+  Potential: 0,
+  Confirmed: 1,
+  Rejected: 2,
+  AutoMerged: 3,
+} as const;
 
 export interface DuplicateCandidateSummary {
   id: string;
@@ -35,6 +42,7 @@ export interface DuplicateCandidateDetail {
   resolutionNotes: string | null;
   createdAt: string;
   updatedAt: string | null;
+  reviewedAt?: string | null;
 }
 
 export interface DuplicateCandidatesSummary {
@@ -61,6 +69,11 @@ export interface DuplicateQueryParams {
   search?: string;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
+}
+
+export interface UpdateCandidateStatusPayload {
+  status: DuplicateStatus;
+  resolutionNotes?: string;
 }
 
 export type PagedDuplicateResponse = PagedResponse<DuplicateCandidateSummary>;
