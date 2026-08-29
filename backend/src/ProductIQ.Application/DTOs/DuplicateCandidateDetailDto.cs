@@ -25,5 +25,6 @@ public class DuplicateCandidateDetailDto
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public CandidateExplanationDto Explanation { get; set; } = new();
+    public CandidateAiExplanationDto? AiExplanationDetails { get; set; }
     public ImageSimilarityResultDto ImageSimilarity { get; set; } = new();
 }
