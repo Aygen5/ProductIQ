@@ -15,15 +15,21 @@ using ProductIQ.Domain.Enums;
 public class DuplicateCandidateService : IDuplicateCandidateService
 {
     private readonly IProductIQDbContext _context;
+    private readonly IDuplicateExplanationService _explanationService;
+    private readonly IImageSimilarityService _imageSimilarityService;
     private readonly CandidateDetectionOptions _options;
     private readonly ILogger<DuplicateCandidateService> _logger;
 
     public DuplicateCandidateService(
         IProductIQDbContext context,
+        IDuplicateExplanationService explanationService,
+        IImageSimilarityService imageSimilarityService,
         IOptions<CandidateDetectionOptions> options,
         ILogger<DuplicateCandidateService> logger)
     {
         _context = context;
+        _explanationService = explanationService;
+        _imageSimilarityService = imageSimilarityService;
         _options = options.Value;
         _logger = logger;
     }
@@ -77,7 +83,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             for (var i = 0; i < blockItems.Count; i++)
             {
                 for (var j = i + 1; j < blockItems.Count; j++)
-                    {
+                {
                     var p1 = blockItems[i];
                     var p2 = blockItems[j];
 
@@ -362,7 +368,8 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             return null;
         }
 
-        return MapToCandidateDetailDto(candidate);
+        var imageSimilarity = await _imageSimilarityService.ComputeImageSimilarityAsync(candidate.ProductAId, candidate.ProductBId, cancellationToken);
+        return MapToCandidateDetailDto(candidate, imageSimilarity);
     }
 
     public async Task<DuplicateCandidateDetailDto> ConfirmCandidateAsync(Guid candidateId, string? resolutionNotes = null, CancellationToken cancellationToken = default)
@@ -406,7 +413,8 @@ public class DuplicateCandidateService : IDuplicateCandidateService
 
         _logger.LogInformation("Candidate {CandidateId} status updated to {Status}", candidateId, status);
 
-        return MapToCandidateDetailDto(candidate);
+        var imageSimilarity = await _imageSimilarityService.ComputeImageSimilarityAsync(candidate.ProductAId, candidate.ProductBId, cancellationToken);
+        return MapToCandidateDetailDto(candidate, imageSimilarity);
     }
 
     public async Task<DuplicateCandidatesSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
@@ -503,15 +511,35 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         };
     }
 
-    private static DuplicateCandidateDetailDto MapToCandidateDetailDto(DuplicateCandidate candidate)
+    private DuplicateCandidateDetailDto MapToCandidateDetailDto(DuplicateCandidate candidate, ImageSimilarityResultDto imageSimilarity)
     {
+        var prodA = candidate.ProductA;
+        var prodB = candidate.ProductB;
+
+        var catA = prodA?.Category ?? prodA?.NodePath;
+        var catB = prodB?.Category ?? prodB?.NodePath;
+        var categoryMatch = IsValidMatch(catA, catB);
+
+        var explanation = (prodA != null && prodB != null)
+            ? _explanationService.GenerateExplanation(
+                prodA,
+                prodB,
+                candidate.OverallScore,
+                candidate.TextSimilarity,
+                candidate.SemanticSimilarity,
+                candidate.AttributeSimilarity,
+                candidate.BrandMatch,
+                candidate.ModelMatch,
+                categoryMatch)
+            : new CandidateExplanationDto();
+
         return new DuplicateCandidateDetailDto
         {
             Id = candidate.Id,
             ProductAId = candidate.ProductAId,
             ProductBId = candidate.ProductBId,
-            ProductA = candidate.ProductA != null ? MapToDetailDto(candidate.ProductA) : null,
-            ProductB = candidate.ProductB != null ? MapToDetailDto(candidate.ProductB) : null,
+            ProductA = prodA != null ? MapToDetailDto(prodA) : null,
+            ProductB = prodB != null ? MapToDetailDto(prodB) : null,
             OverallScore = candidate.OverallScore,
             TextSimilarity = candidate.TextSimilarity,
             SemanticSimilarity = candidate.SemanticSimilarity,
@@ -519,13 +547,16 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             VisualSimilarity = candidate.VisualSimilarity,
             BrandMatch = candidate.BrandMatch,
             ModelMatch = candidate.ModelMatch,
+            CategoryMatch = categoryMatch,
             Status = candidate.Status,
             MatchSignals = candidate.MatchSignals,
             AiExplanation = candidate.AiExplanation,
             ResolutionNotes = candidate.ResolutionNotes,
             ReviewedAt = candidate.ReviewedAt,
             CreatedAt = candidate.CreatedAt,
-            UpdatedAt = candidate.UpdatedAt
+            UpdatedAt = candidate.UpdatedAt,
+            Explanation = explanation,
+            ImageSimilarity = imageSimilarity
         };
     }
 

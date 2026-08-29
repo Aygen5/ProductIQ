@@ -13,6 +13,8 @@ public static class DependencyInjection
         services.AddScoped<IProductEmbeddingBatchService, ProductEmbeddingBatchService>();
         services.AddScoped<IDuplicateCandidateService, DuplicateCandidateService>();
         services.AddScoped<IDuplicateScoringService, DuplicateScoringService>();
+        services.AddScoped<IDuplicateExplanationService, DuplicateExplanationService>();
+        services.AddScoped<IImageSimilarityService, ImageSimilarityService>();
         return services;
     }
 }
