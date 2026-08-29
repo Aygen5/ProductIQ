@@ -18,6 +18,8 @@ export const DuplicateDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState<string>("");
+  const [selectedImageA, setSelectedImageA] = useState<string | null>(null);
+  const [selectedImageB, setSelectedImageB] = useState<string | null>(null);
 
   const loadCandidate = useCallback(async () => {
     if (!id) {
@@ -35,8 +37,15 @@ export const DuplicateDetailPage: React.FC = () => {
       if (data.resolutionNotes) {
         setResolutionNotes(data.resolutionNotes);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to load candidate details.");
+      if (data.productA?.mainImageUrl) {
+        setSelectedImageA(data.productA.mainImageUrl);
+      }
+      if (data.productB?.mainImageUrl) {
+        setSelectedImageB(data.productB.mainImageUrl);
+      }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load candidate details.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -54,8 +63,9 @@ export const DuplicateDetailPage: React.FC = () => {
       const updated = await confirmDuplicateCandidate(id, resolutionNotes.trim() || undefined);
       setCandidate(updated);
       setFeedback({ type: "success", message: "Duplicate pair confirmed successfully in database." });
-    } catch (err: any) {
-      setFeedback({ type: "error", message: err.message || "Failed to confirm duplicate." });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to confirm duplicate.";
+      setFeedback({ type: "error", message: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -69,8 +79,9 @@ export const DuplicateDetailPage: React.FC = () => {
       const updated = await rejectDuplicateCandidate(id, resolutionNotes.trim() || undefined);
       setCandidate(updated);
       setFeedback({ type: "success", message: "Candidate pair marked as Not a Duplicate (Rejected)." });
-    } catch (err: any) {
-      setFeedback({ type: "error", message: err.message || "Failed to reject duplicate." });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to reject duplicate.";
+      setFeedback({ type: "error", message: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -84,14 +95,15 @@ export const DuplicateDetailPage: React.FC = () => {
       const updated = await updateCandidateStatus(id, 0 as DuplicateStatus, resolutionNotes.trim() || undefined);
       setCandidate(updated);
       setFeedback({ type: "success", message: "Candidate reset back to Pending Review status." });
-    } catch (err: any) {
-      setFeedback({ type: "error", message: err.message || "Failed to reset status." });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to reset status.";
+      setFeedback({ type: "error", message: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const parseSignals = (matchSignals: string | null) => {
+  const parseSignals = (matchSignals: string | null): Record<string, number | boolean | string[]> | null => {
     if (!matchSignals) return null;
     try {
       return JSON.parse(matchSignals);
@@ -104,7 +116,7 @@ export const DuplicateDetailPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] w-full gap-md">
         <span className="material-symbols-outlined text-[48px] animate-spin text-primary">progress_activity</span>
-        <span className="text-body-lg text-on-surface-variant">Loading duplicate analysis & AI explanation...</span>
+        <span className="text-body-lg text-on-surface-variant">Loading duplicate technical analysis & AI explanation...</span>
       </div>
     );
   }
@@ -129,16 +141,17 @@ export const DuplicateDetailPage: React.FC = () => {
   }
 
   const signals = parseSignals(candidate.matchSignals);
-  const overallPct = Math.round(candidate.overallScore * 100);
-  const brandPct = Math.round((signals?.brand_score ?? (candidate.brandMatch ? 1 : 0)) * 100);
-  const categoryPct = Math.round((signals?.category_score ?? (candidate.categoryMatch ? 1 : 0)) * 100);
-  const modelPct = Math.round((signals?.model_score ?? (candidate.modelMatch ? 1 : 0)) * 100);
+  const overallPct = (candidate.overallScore * 100).toFixed(2);
+  const overallNumeric = Math.round(candidate.overallScore * 100);
+  const brandPct = Math.round((typeof signals?.brand_score === "number" ? signals.brand_score : (candidate.brandMatch ? 1 : 0)) * 100);
+  const categoryPct = Math.round((typeof signals?.category_score === "number" ? signals.category_score : (candidate.categoryMatch ? 1 : 0)) * 100);
+  const modelPct = Math.round((typeof signals?.model_score === "number" ? signals.model_score : (candidate.modelMatch ? 1 : 0)) * 100);
   const textPct = Math.round((candidate.textSimilarity ?? 0) * 100);
   const semanticPct = Math.round((candidate.semanticSimilarity ?? 0) * 100);
   const attributePct = Math.round((candidate.attributeSimilarity ?? 0) * 100);
 
   const strokeDash = 289;
-  const strokeOffset = strokeDash - (strokeDash * overallPct) / 100;
+  const strokeOffset = strokeDash - (strokeDash * overallNumeric) / 100;
 
   const attrMapA = new Map<string, string>();
   candidate.productA?.attributes?.forEach((a) => attrMapA.set(a.key.toLowerCase(), a.value));
@@ -147,6 +160,9 @@ export const DuplicateDetailPage: React.FC = () => {
   candidate.productB?.attributes?.forEach((b) => attrMapB.set(b.key.toLowerCase(), b.value));
 
   const allAttrKeys = Array.from(new Set([...Array.from(attrMapA.keys()), ...Array.from(attrMapB.keys())])).sort();
+
+  const currentImgA = selectedImageA || candidate.productA?.mainImageUrl;
+  const currentImgB = selectedImageB || candidate.productB?.mainImageUrl;
 
   return (
     <div className="flex flex-col w-full relative">
@@ -160,7 +176,7 @@ export const DuplicateDetailPage: React.FC = () => {
               Duplicate Queue
             </span>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary font-bold">Deep Analysis & Explanation</span>
+            <span className="text-primary font-bold">Deep Technical Comparison & Explanation</span>
           </div>
           <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Technical Detail</h1>
         </div>
@@ -278,8 +294,8 @@ export const DuplicateDetailPage: React.FC = () => {
                 </div>
               </div>
               <div className="mt-2 px-md py-0.5 rounded-full bg-primary-container/30 border border-primary/30 backdrop-blur-md">
-                <span className="font-label-sm text-label-sm text-on-primary-container uppercase tracking-widest">
-                  Duplicate Confidence
+                <span className="font-label-sm text-label-sm text-on-primary-container uppercase tracking-widest font-semibold">
+                  Overall Duplicate Confidence
                 </span>
               </div>
             </div>
@@ -297,16 +313,35 @@ export const DuplicateDetailPage: React.FC = () => {
                 </div>
 
                 <div className="w-full aspect-[4/3] rounded-xl overflow-hidden relative bg-surface-container flex items-center justify-center p-md">
-                  {candidate.productA?.mainImageUrl ? (
+                  {currentImgA ? (
                     <img
-                      src={candidate.productA.mainImageUrl}
-                      alt={candidate.productA.name}
+                      src={currentImgA}
+                      alt={candidate.productA?.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://images-na.ssl-images-amazon.com/images/I/01RmK%2BJNmNL.png";
+                      }}
                       className="w-full h-full object-contain"
                     />
                   ) : (
                     <span className="material-symbols-outlined text-outline text-[48px]">image</span>
                   )}
                 </div>
+
+                {candidate.productA?.images && candidate.productA.images.length > 1 && (
+                  <div className="flex items-center gap-xs overflow-x-auto pb-xs">
+                    {candidate.productA.images.filter((img) => Boolean(img.url)).slice(0, 5).map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedImageA(img.url)}
+                        className={`w-12 h-12 rounded-lg overflow-hidden border flex-shrink-0 bg-surface ${
+                          currentImgA === img.url ? "border-primary ring-2 ring-primary/30" : "border-outline-variant/20 hover:border-outline"
+                        }`}
+                      >
+                        <img src={img.url || ""} alt="" className="w-full h-full object-contain p-0.5" />
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-xs mt-xs">
                   <h3 className="font-headline-sm text-headline-sm text-on-background line-clamp-2" title={candidate.productA?.name}>
@@ -340,6 +375,12 @@ export const DuplicateDetailPage: React.FC = () => {
                       <span className="text-on-surface font-mono">{candidate.productA.modelNumber}</span>
                     </div>
                   )}
+                  {candidate.productA?.modelName && (
+                    <div className="flex justify-between text-on-surface-variant">
+                      <span>Model Name:</span>
+                      <span className="text-on-surface">{candidate.productA.modelName}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -355,16 +396,35 @@ export const DuplicateDetailPage: React.FC = () => {
                 </div>
 
                 <div className="w-full aspect-[4/3] rounded-xl overflow-hidden relative bg-surface-container flex items-center justify-center p-md">
-                  {candidate.productB?.mainImageUrl ? (
+                  {currentImgB ? (
                     <img
-                      src={candidate.productB.mainImageUrl}
-                      alt={candidate.productB.name}
+                      src={currentImgB}
+                      alt={candidate.productB?.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://images-na.ssl-images-amazon.com/images/I/01RmK%2BJNmNL.png";
+                      }}
                       className="w-full h-full object-contain"
                     />
                   ) : (
                     <span className="material-symbols-outlined text-outline text-[48px]">image</span>
                   )}
                 </div>
+
+                {candidate.productB?.images && candidate.productB.images.length > 1 && (
+                  <div className="flex items-center gap-xs overflow-x-auto pb-xs">
+                    {candidate.productB.images.filter((img) => Boolean(img.url)).slice(0, 5).map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedImageB(img.url)}
+                        className={`w-12 h-12 rounded-lg overflow-hidden border flex-shrink-0 bg-surface ${
+                          currentImgB === img.url ? "border-secondary ring-2 ring-secondary/30" : "border-outline-variant/20 hover:border-outline"
+                        }`}
+                      >
+                        <img src={img.url || ""} alt="" className="w-full h-full object-contain p-0.5" />
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-xs mt-xs">
                   <h3 className="font-headline-sm text-headline-sm text-on-background line-clamp-2" title={candidate.productB?.name}>
@@ -398,6 +458,12 @@ export const DuplicateDetailPage: React.FC = () => {
                       <span className="text-on-surface font-mono">{candidate.productB.modelNumber}</span>
                     </div>
                   )}
+                  {candidate.productB?.modelName && (
+                    <div className="flex justify-between text-on-surface-variant">
+                      <span>Model Name:</span>
+                      <span className="text-on-surface">{candidate.productB.modelName}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -407,12 +473,12 @@ export const DuplicateDetailPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-sm">
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-[20px]">smart_toy</span>
+                  <span className="material-symbols-outlined text-primary text-[20px]">psychology</span>
                 </div>
-                <h2 className="font-headline-md text-headline-md text-on-background font-bold">AI Explanation & Synthesis</h2>
+                <h2 className="font-headline-md text-headline-md text-on-background font-bold">Why might these products be duplicates?</h2>
               </div>
               <span className="px-sm py-1 rounded-lg bg-primary-container text-on-primary-container font-label-sm text-label-sm font-bold">
-                {candidate.explanation?.confidenceLevel || "Automated Analysis"}
+                {candidate.explanation?.confidenceLevel || "Automated Synthesis"}
               </span>
             </div>
 
@@ -424,7 +490,7 @@ export const DuplicateDetailPage: React.FC = () => {
               <div className="p-md rounded-2xl bg-surface-container-lowest/70 border border-outline-variant/10 flex flex-col gap-xs">
                 <div className="flex items-center gap-xs text-secondary font-label-md text-label-md font-bold mb-xs">
                   <span className="material-symbols-outlined text-[18px]">verified</span>
-                  Key Matching Signals
+                  Matching Signals
                 </div>
                 {candidate.explanation?.keyMatches && candidate.explanation.keyMatches.length > 0 ? (
                   <ul className="flex flex-col gap-xs text-body-sm text-on-surface">
@@ -443,7 +509,7 @@ export const DuplicateDetailPage: React.FC = () => {
               <div className="p-md rounded-2xl bg-surface-container-lowest/70 border border-outline-variant/10 flex flex-col gap-xs">
                 <div className="flex items-center gap-xs text-tertiary font-label-md text-label-md font-bold mb-xs">
                   <span className="material-symbols-outlined text-[18px]">info</span>
-                  Divergence & Caveats
+                  Differences & Caveats
                 </div>
                 {candidate.explanation?.keyDifferences && candidate.explanation.keyDifferences.length > 0 ? (
                   <ul className="flex flex-col gap-xs text-body-sm text-on-surface">
@@ -487,7 +553,7 @@ export const DuplicateDetailPage: React.FC = () => {
                   <div className="h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${brandPct}%` }}></div>
                 </div>
                 <p className="font-body-sm text-body-sm text-outline">
-                  {brandPct >= 80 ? "Exact or parent-brand alignment." : "Different or unverified brand information."}
+                  {brandPct >= 80 ? "Exact brand alignment." : "Different or unverified brand information."}
                 </p>
               </div>
 
@@ -571,20 +637,20 @@ export const DuplicateDetailPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-sm">
-                <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-sm md:col-span-2 p-md rounded-2xl bg-surface-container-lowest/50 border border-outline-variant/10">
+                <div className="flex justify-between items-center">
                   <div className="flex items-center gap-sm">
                     <span className="material-symbols-outlined text-outline text-[20px]">image_search</span>
-                    <span className="font-label-md text-label-md text-on-surface">Image Similarity</span>
+                    <span className="font-label-md text-label-md text-on-surface font-semibold">Image Similarity (CLIP / Vision)</span>
                   </div>
-                  <span className="font-label-sm text-label-sm text-outline px-2 py-0.5 rounded bg-surface-container">
+                  <span className="font-label-sm text-label-sm text-outline px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant/20 font-medium">
                     {candidate.imageSimilarity?.isAvailable ? `${Math.round(candidate.imageSimilarity.similarityScore! * 100)}%` : "Not available yet"}
                   </span>
                 </div>
-                <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden mt-xs">
                   <div className="h-full bg-outline/20 rounded-full" style={{ width: "0%" }}></div>
                 </div>
-                <p className="font-body-sm text-body-sm text-outline">
+                <p className="font-body-sm text-[12px] text-outline mt-xs">
                   {candidate.imageSimilarity?.statusMessage || "Visual embedding analysis (CLIP/Vision) will be enabled in Phase 12."}
                 </p>
               </div>
@@ -691,7 +757,7 @@ export const DuplicateDetailPage: React.FC = () => {
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                   <span className="material-symbols-outlined text-primary text-[18px]">auto_awesome</span>
                 </div>
-                <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest">Candidate Info</span>
+                <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest font-semibold">Candidate Info</span>
               </div>
               <div className="p-md bg-surface-container-lowest/60 rounded-xl border border-outline-variant/10 font-mono text-[12px] text-on-surface-variant flex flex-col gap-xs">
                 <div className="flex justify-between">
