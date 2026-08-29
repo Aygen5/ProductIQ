@@ -13,5 +13,6 @@ public interface IProductIQDbContext
     DbSet<SystemSetting> SystemSettings { get; }
     DbSet<SearchQueryLog> SearchQueryLogs { get; }
     DbSet<ProductEmbedding> ProductEmbeddings { get; }
+    DbSet<ProductImageEmbedding> ProductImageEmbeddings { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

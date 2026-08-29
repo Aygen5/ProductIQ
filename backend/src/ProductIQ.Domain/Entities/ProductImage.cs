@@ -1,4 +1,4 @@
-﻿namespace ProductIQ.Domain.Entities;
+namespace ProductIQ.Domain.Entities;
 
 using ProductIQ.Domain.Common;
 
@@ -13,4 +13,5 @@ public class ProductImage : BaseEntity
     public bool IsMain { get; set; }
 
     public Product Product { get; set; } = null!;
+    public ProductImageEmbedding? Embedding { get; set; }
 }

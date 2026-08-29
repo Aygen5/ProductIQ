@@ -19,6 +19,7 @@ public class ProductIQDbContext : DbContext, IProductIQDbContext
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<SearchQueryLog> SearchQueryLogs => Set<SearchQueryLog>();
     public DbSet<ProductEmbedding> ProductEmbeddings => Set<ProductEmbedding>();
+    public DbSet<ProductImageEmbedding> ProductImageEmbeddings => Set<ProductImageEmbedding>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
