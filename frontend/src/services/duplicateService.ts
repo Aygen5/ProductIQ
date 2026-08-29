@@ -154,3 +154,25 @@ export async function updateCandidateStatus(
 
   return await response.json();
 }
+
+export async function fetchCandidateRiskAssessment(id: string) {
+  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/risk`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (response.status === 404) {
+    const err = new Error(`Candidate with ID '${id}' was not found.`);
+    (err as any).status = 404;
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch risk assessment (${response.status}): ${errorText}`);
+  }
+
+  return await response.json();
+}

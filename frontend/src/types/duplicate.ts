@@ -28,6 +28,37 @@ export interface CandidateAiExplanation {
   modelUsed?: string | null;
 }
 
+export interface RiskSignal {
+  code: string;
+  name: string;
+  category: string;
+  severity: "Low" | "Medium" | "High" | "Critical" | string;
+  scoreContribution: number;
+  description: string;
+  evidence: string;
+}
+
+export interface AiRiskExplanation {
+  summary: string;
+  reasoning: string;
+  keyRisks: string[];
+  operatorGuidance: string;
+  status: "Generated" | "Fallback" | "Disabled" | string;
+  generatedAt?: string | null;
+  modelUsed?: string | null;
+}
+
+export interface RiskAssessment {
+  riskScore: number;
+  riskLevel: "Low" | "Medium" | "High" | "Critical" | string;
+  summary: string;
+  riskSignals: RiskSignal[];
+  conflictingSignalsCount: number;
+  dataQualityIssuesCount: number;
+  requiresImmediateReview: boolean;
+  aiExplanation?: AiRiskExplanation | null;
+}
+
 export interface ImageSimilarityResult {
   isAvailable: boolean;
   similarityScore: number | null;
@@ -50,6 +81,8 @@ export interface DuplicateCandidateSummary {
   categoryMatch?: boolean;
   status: DuplicateStatus;
   matchSignals: string | null;
+  riskScore?: number;
+  riskLevel?: string;
   createdAt: string;
 }
 
@@ -71,6 +104,7 @@ export interface DuplicateCandidateDetail {
   matchSignals: string | null;
   aiExplanation: string | null;
   aiExplanationDetails?: CandidateAiExplanation | null;
+  riskAssessment?: RiskAssessment;
   resolutionNotes: string | null;
   createdAt: string;
   updatedAt: string | null;
