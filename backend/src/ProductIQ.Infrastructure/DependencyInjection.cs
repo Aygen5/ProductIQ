@@ -28,6 +28,7 @@ public static class DependencyInjection
 
         services.Configure<EmbeddingOptions>(configuration.GetSection(EmbeddingOptions.SectionName));
         services.Configure<ClipOptions>(configuration.GetSection(ClipOptions.SectionName));
+        services.Configure<OpenAiExplanationOptions>(configuration.GetSection(OpenAiExplanationOptions.SectionName));
 
         services.AddHttpClient<IEmbeddingService, OpenAiEmbeddingService>(client =>
         {
@@ -37,6 +38,11 @@ public static class DependencyInjection
         services.AddHttpClient<IClipImageEmbeddingService, ClipImageEmbeddingService>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
+        });
+
+        services.AddHttpClient<IExplanationLlmService, OpenAiExplanationLlmService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
         });
 
         services.AddScoped<ISimilaritySearchService, SimilaritySearchService>();

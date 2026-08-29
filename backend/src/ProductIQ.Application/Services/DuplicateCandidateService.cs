@@ -17,6 +17,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
     private readonly IProductIQDbContext _context;
     private readonly IDuplicateExplanationService _explanationService;
     private readonly IImageSimilarityService _imageSimilarityService;
+    private readonly IExplanationLlmService _llmService;
     private readonly CandidateDetectionOptions _options;
     private readonly ILogger<DuplicateCandidateService> _logger;
 
@@ -24,12 +25,14 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         IProductIQDbContext context,
         IDuplicateExplanationService explanationService,
         IImageSimilarityService imageSimilarityService,
+        IExplanationLlmService llmService,
         IOptions<CandidateDetectionOptions> options,
         ILogger<DuplicateCandidateService> logger)
     {
         _context = context;
         _explanationService = explanationService;
         _imageSimilarityService = imageSimilarityService;
+        _llmService = llmService;
         _options = options.Value;
         _logger = logger;
     }
@@ -352,7 +355,6 @@ public class DuplicateCandidateService : IDuplicateCandidateService
     public async Task<DuplicateCandidateDetailDto?> GetCandidateDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var candidate = await _context.DuplicateCandidates
-            .AsNoTracking()
             .Include(d => d.ProductA)
                 .ThenInclude(p => p.Images)
             .Include(d => d.ProductA)
@@ -369,7 +371,49 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         }
 
         var imageSimilarity = await _imageSimilarityService.ComputeImageSimilarityAsync(candidate.ProductAId, candidate.ProductBId, cancellationToken);
-        return MapToCandidateDetailDto(candidate, imageSimilarity);
+        var detailDto = MapToCandidateDetailDto(candidate, imageSimilarity);
+
+        CandidateAiExplanationDto? aiExplanation = null;
+
+        if (!string.IsNullOrWhiteSpace(candidate.AiExplanation))
+        {
+            try
+            {
+                aiExplanation = JsonSerializer.Deserialize<CandidateAiExplanationDto>(candidate.AiExplanation, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                if (aiExplanation != null && !string.IsNullOrWhiteSpace(aiExplanation.Summary))
+                {
+                    aiExplanation.Status = "Cached";
+                }
+            }
+            catch
+            {
+                aiExplanation = null;
+            }
+        }
+
+        if (aiExplanation == null || string.IsNullOrWhiteSpace(aiExplanation.Summary))
+        {
+            var promptContext = BuildPromptContext(detailDto);
+            aiExplanation = await _llmService.GenerateExplanationAsync(promptContext, cancellationToken);
+
+            try
+            {
+                candidate.AiExplanation = JsonSerializer.Serialize(aiExplanation);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to persist cached AI explanation for candidate {CandidateId}", candidate.Id);
+            }
+        }
+
+        detailDto.AiExplanationDetails = aiExplanation;
+        detailDto.AiExplanation = aiExplanation?.Summary ?? detailDto.Explanation.Summary;
+
+        return detailDto;
     }
 
     public async Task<DuplicateCandidateDetailDto> ConfirmCandidateAsync(Guid candidateId, string? resolutionNotes = null, CancellationToken cancellationToken = default)
@@ -414,7 +458,26 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         _logger.LogInformation("Candidate {CandidateId} status updated to {Status}", candidateId, status);
 
         var imageSimilarity = await _imageSimilarityService.ComputeImageSimilarityAsync(candidate.ProductAId, candidate.ProductBId, cancellationToken);
-        return MapToCandidateDetailDto(candidate, imageSimilarity);
+        var detailDto = MapToCandidateDetailDto(candidate, imageSimilarity);
+
+        if (!string.IsNullOrWhiteSpace(candidate.AiExplanation))
+        {
+            try
+            {
+                var cached = JsonSerializer.Deserialize<CandidateAiExplanationDto>(candidate.AiExplanation, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                detailDto.AiExplanationDetails = cached;
+                detailDto.AiExplanation = cached?.Summary ?? detailDto.Explanation.Summary;
+            }
+            catch
+            {
+                detailDto.AiExplanation = candidate.AiExplanation;
+            }
+        }
+
+        return detailDto;
     }
 
     public async Task<DuplicateCandidatesSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
@@ -643,5 +706,56 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         }
 
         return string.Join(" ", value.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+    }
+
+    private static ExplanationPromptContextDto BuildPromptContext(DuplicateCandidateDetailDto detail)
+    {
+        var prodA = detail.ProductA;
+        var prodB = detail.ProductB;
+
+        return new ExplanationPromptContextDto
+        {
+            CandidateId = detail.Id,
+            OverallScore = detail.OverallScore,
+            ConfidenceLevel = detail.Explanation.ConfidenceLevel,
+            BrandMatch = detail.BrandMatch,
+            CategoryMatch = detail.CategoryMatch,
+            ModelMatch = detail.ModelMatch,
+            TextSimilarity = detail.TextSimilarity,
+            SemanticSimilarity = detail.SemanticSimilarity,
+            AttributeSimilarity = detail.AttributeSimilarity,
+            VisualSimilarity = detail.VisualSimilarity ?? detail.ImageSimilarity.SimilarityScore,
+            ProductA = new ExplanationProductSummaryDto
+            {
+                AmazonItemId = prodA?.AmazonItemId ?? string.Empty,
+                Name = prodA?.Name ?? string.Empty,
+                Brand = prodA?.Brand,
+                Category = prodA?.Category,
+                ProductType = prodA?.ProductType,
+                ModelName = prodA?.ModelName,
+                ModelNumber = prodA?.ModelNumber,
+                Dimensions = prodA?.Dimensions != null
+                    ? $"{prodA.Dimensions.Length}x{prodA.Dimensions.Width}x{prodA.Dimensions.Height} {prodA.Dimensions.DimensionUnit}"
+                    : null,
+                Price = prodA?.Price
+            },
+            ProductB = new ExplanationProductSummaryDto
+            {
+                AmazonItemId = prodB?.AmazonItemId ?? string.Empty,
+                Name = prodB?.Name ?? string.Empty,
+                Brand = prodB?.Brand,
+                Category = prodB?.Category,
+                ProductType = prodB?.ProductType,
+                ModelName = prodB?.ModelName,
+                ModelNumber = prodB?.ModelNumber,
+                Dimensions = prodB?.Dimensions != null
+                    ? $"{prodB.Dimensions.Length}x{prodB.Dimensions.Width}x{prodB.Dimensions.Height} {prodB.Dimensions.DimensionUnit}"
+                    : null,
+                Price = prodB?.Price
+            },
+            DeterministicMatches = detail.Explanation.KeyMatches,
+            DeterministicDifferences = detail.Explanation.KeyDifferences,
+            DeterministicRecommendation = detail.Explanation.Recommendation
+        };
     }
 }
