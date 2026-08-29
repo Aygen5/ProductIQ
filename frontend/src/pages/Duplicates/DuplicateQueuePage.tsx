@@ -489,6 +489,12 @@ export const DuplicateQueuePage: React.FC = () => {
                                   Sem: {Math.round(signals.semantic_similarity * 100)}%
                                 </span>
                               )}
+                              {(signals?.image_similarity !== undefined || c.visualSimilarity != null) && (
+                                <span className="bg-secondary-container/20 text-on-secondary-container border border-secondary/20 px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-[2px]">
+                                  <span className="material-symbols-outlined text-[11px]">image</span>
+                                  CLIP: {Math.round(((signals?.image_similarity ?? c.visualSimilarity) as number) * 100)}%
+                                </span>
+                              )}
                             </div>
                           </td>
 

@@ -30,8 +30,13 @@ export interface DuplicateCandidateSummary {
   productA: ProductSummary | null;
   productB: ProductSummary | null;
   overallScore: number;
+  textSimilarity?: number | null;
+  semanticSimilarity?: number | null;
+  attributeSimilarity?: number | null;
+  visualSimilarity?: number | null;
   brandMatch: boolean;
   modelMatch: boolean;
+  categoryMatch?: boolean;
   status: DuplicateStatus;
   matchSignals: string | null;
   createdAt: string;

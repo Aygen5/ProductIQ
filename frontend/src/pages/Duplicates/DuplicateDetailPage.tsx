@@ -149,6 +149,8 @@ export const DuplicateDetailPage: React.FC = () => {
   const textPct = Math.round((candidate.textSimilarity ?? 0) * 100);
   const semanticPct = Math.round((candidate.semanticSimilarity ?? 0) * 100);
   const attributePct = Math.round((candidate.attributeSimilarity ?? 0) * 100);
+  const imagePct = Math.round((typeof signals?.image_similarity === "number" ? signals.image_similarity : (candidate.visualSimilarity ?? candidate.imageSimilarity?.similarityScore ?? 0)) * 100);
+  const hasImageSim = typeof signals?.image_similarity === "number" || candidate.visualSimilarity != null || (candidate.imageSimilarity?.isAvailable && candidate.imageSimilarity.similarityScore != null);
 
   const strokeDash = 289;
   const strokeOffset = strokeDash - (strokeDash * overallNumeric) / 100;
@@ -640,18 +642,20 @@ export const DuplicateDetailPage: React.FC = () => {
               <div className="flex flex-col gap-sm md:col-span-2 p-md rounded-2xl bg-surface-container-lowest/50 border border-outline-variant/10">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-sm">
-                    <span className="material-symbols-outlined text-outline text-[20px]">image_search</span>
-                    <span className="font-label-md text-label-md text-on-surface font-semibold">Image Similarity (CLIP / Vision)</span>
+                    <span className="material-symbols-outlined text-secondary text-[20px]">image_search</span>
+                    <span className="font-label-md text-label-md text-on-surface font-semibold">Image Similarity (CLIP ViT-B/32)</span>
                   </div>
-                  <span className="font-label-sm text-label-sm text-outline px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant/20 font-medium">
-                    {candidate.imageSimilarity?.isAvailable ? `${Math.round(candidate.imageSimilarity.similarityScore! * 100)}%` : "Not available yet"}
+                  <span className={`font-label-sm text-label-sm px-2.5 py-0.5 rounded-full border font-bold ${
+                    hasImageSim ? "bg-secondary-container/40 text-on-secondary-container border-secondary/30" : "bg-surface-container text-outline border-outline-variant/20"
+                  }`}>
+                    {hasImageSim ? `${imagePct}%` : "No Image Embeddings"}
                   </span>
                 </div>
                 <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden mt-xs">
-                  <div className="h-full bg-outline/20 rounded-full" style={{ width: "0%" }}></div>
+                  <div className={`h-full rounded-full transition-all duration-700 ${hasImageSim ? "bg-secondary" : "bg-outline/20"}`} style={{ width: `${hasImageSim ? imagePct : 0}%` }}></div>
                 </div>
                 <p className="font-body-sm text-[12px] text-outline mt-xs">
-                  {candidate.imageSimilarity?.statusMessage || "Visual embedding analysis (CLIP/Vision) will be enabled in Phase 12."}
+                  {candidate.imageSimilarity?.statusMessage || (hasImageSim ? "CLIP visual similarity computed from 512-dimensional ViT-B/32 image embeddings stored in PostgreSQL pgvector." : "No visual embeddings available for candidate products.")}
                 </p>
               </div>
             </div>
