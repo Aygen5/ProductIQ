@@ -131,6 +131,25 @@ using (var scope = host.Services.CreateScope())
             }
         }
     }
+    else if (args.Contains("--generate-image-embeddings", StringComparer.OrdinalIgnoreCase))
+    {
+        var imageEmbeddingBatchService = scope.ServiceProvider.GetRequiredService<IProductImageEmbeddingBatchService>();
+        logger.LogInformation("Starting CLIP image embedding generation pipeline for all product images in database...");
+
+        var result = await imageEmbeddingBatchService.GenerateImageEmbeddingsForAllProductImagesAsync();
+
+        logger.LogInformation("CLIP Image Embedding Summary: Products Evaluated: {Products}, Images Evaluated: {Images}, Embeddings Created: {Created}, Embeddings Skipped: {Skipped}, Failed Images: {Failed} in {Elapsed}ms",
+            result.TotalProductsEvaluated, result.TotalImagesEvaluated, result.EmbeddingsCreated, result.EmbeddingsSkipped, result.FailedImages, result.ExecutionDuration.TotalMilliseconds);
+
+        if (result.Errors.Count > 0)
+        {
+            logger.LogWarning("CLIP Pipeline encountered {Count} image errors during execution. First few errors:", result.Errors.Count);
+            foreach (var err in result.Errors.Take(10))
+            {
+                logger.LogWarning(" - {Error}", err);
+            }
+        }
+    }
     else if (args.Contains("--similarity-search", StringComparer.OrdinalIgnoreCase))
     {
         var searchIndex = Array.FindIndex(args, a => string.Equals(a, "--similarity-search", StringComparison.OrdinalIgnoreCase));
