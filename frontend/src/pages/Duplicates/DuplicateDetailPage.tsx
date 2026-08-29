@@ -104,7 +104,7 @@ export const DuplicateDetailPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] w-full gap-md">
         <span className="material-symbols-outlined text-[48px] animate-spin text-primary">progress_activity</span>
-        <span className="text-body-lg text-on-surface-variant">Loading duplicate analysis...</span>
+        <span className="text-body-lg text-on-surface-variant">Loading duplicate analysis & AI explanation...</span>
       </div>
     );
   }
@@ -131,7 +131,7 @@ export const DuplicateDetailPage: React.FC = () => {
   const signals = parseSignals(candidate.matchSignals);
   const overallPct = Math.round(candidate.overallScore * 100);
   const brandPct = Math.round((signals?.brand_score ?? (candidate.brandMatch ? 1 : 0)) * 100);
-  const categoryPct = Math.round((signals?.category_score ?? 0) * 100);
+  const categoryPct = Math.round((signals?.category_score ?? (candidate.categoryMatch ? 1 : 0)) * 100);
   const modelPct = Math.round((signals?.model_score ?? (candidate.modelMatch ? 1 : 0)) * 100);
   const textPct = Math.round((candidate.textSimilarity ?? 0) * 100);
   const semanticPct = Math.round((candidate.semanticSimilarity ?? 0) * 100);
@@ -139,6 +139,14 @@ export const DuplicateDetailPage: React.FC = () => {
 
   const strokeDash = 289;
   const strokeOffset = strokeDash - (strokeDash * overallPct) / 100;
+
+  const attrMapA = new Map<string, string>();
+  candidate.productA?.attributes?.forEach((a) => attrMapA.set(a.key.toLowerCase(), a.value));
+
+  const attrMapB = new Map<string, string>();
+  candidate.productB?.attributes?.forEach((b) => attrMapB.set(b.key.toLowerCase(), b.value));
+
+  const allAttrKeys = Array.from(new Set([...Array.from(attrMapA.keys()), ...Array.from(attrMapB.keys())])).sort();
 
   return (
     <div className="flex flex-col w-full relative">
@@ -152,9 +160,9 @@ export const DuplicateDetailPage: React.FC = () => {
               Duplicate Queue
             </span>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary font-bold">Review & Decision</span>
+            <span className="text-primary font-bold">Deep Analysis & Explanation</span>
           </div>
-          <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Analysis</h1>
+          <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Technical Detail</h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-sm">
@@ -395,6 +403,71 @@ export const DuplicateDetailPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="bg-primary/5 rounded-[24px] p-xl border border-primary/20 flex flex-col gap-md relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-sm">
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-primary text-[20px]">smart_toy</span>
+                </div>
+                <h2 className="font-headline-md text-headline-md text-on-background font-bold">AI Explanation & Synthesis</h2>
+              </div>
+              <span className="px-sm py-1 rounded-lg bg-primary-container text-on-primary-container font-label-sm text-label-sm font-bold">
+                {candidate.explanation?.confidenceLevel || "Automated Analysis"}
+              </span>
+            </div>
+
+            <p className="font-body-lg text-body-lg text-on-background leading-relaxed">
+              {candidate.explanation?.summary}
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-md mt-sm">
+              <div className="p-md rounded-2xl bg-surface-container-lowest/70 border border-outline-variant/10 flex flex-col gap-xs">
+                <div className="flex items-center gap-xs text-secondary font-label-md text-label-md font-bold mb-xs">
+                  <span className="material-symbols-outlined text-[18px]">verified</span>
+                  Key Matching Signals
+                </div>
+                {candidate.explanation?.keyMatches && candidate.explanation.keyMatches.length > 0 ? (
+                  <ul className="flex flex-col gap-xs text-body-sm text-on-surface">
+                    {candidate.explanation.keyMatches.map((m, idx) => (
+                      <li key={idx} className="flex items-start gap-xs">
+                        <span className="material-symbols-outlined text-secondary text-[16px] mt-0.5">check</span>
+                        <span>{m}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-body-sm text-outline">No strong matching signals detected.</span>
+                )}
+              </div>
+
+              <div className="p-md rounded-2xl bg-surface-container-lowest/70 border border-outline-variant/10 flex flex-col gap-xs">
+                <div className="flex items-center gap-xs text-tertiary font-label-md text-label-md font-bold mb-xs">
+                  <span className="material-symbols-outlined text-[18px]">info</span>
+                  Divergence & Caveats
+                </div>
+                {candidate.explanation?.keyDifferences && candidate.explanation.keyDifferences.length > 0 ? (
+                  <ul className="flex flex-col gap-xs text-body-sm text-on-surface">
+                    {candidate.explanation.keyDifferences.map((d, idx) => (
+                      <li key={idx} className="flex items-start gap-xs">
+                        <span className="material-symbols-outlined text-tertiary text-[16px] mt-0.5">arrow_right</span>
+                        <span>{d}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-body-sm text-outline">No critical conflicting differences detected.</span>
+                )}
+              </div>
+            </div>
+
+            {candidate.explanation?.recommendation && (
+              <div className="mt-xs p-sm rounded-xl bg-surface-container font-body-sm text-body-sm text-on-surface flex items-center gap-sm">
+                <span className="material-symbols-outlined text-primary text-[18px]">lightbulb</span>
+                <span><strong>Recommendation:</strong> {candidate.explanation.recommendation}</span>
+              </div>
+            )}
+          </div>
+
           <div className="bg-surface-container-low rounded-[24px] p-xl border border-outline-variant/10 flex flex-col gap-lg">
             <div className="flex items-center gap-sm">
               <span className="material-symbols-outlined text-primary text-[28px]">insights</span>
@@ -494,10 +567,104 @@ export const DuplicateDetailPage: React.FC = () => {
                   <div className="h-full bg-on-surface-variant rounded-full transition-all duration-700" style={{ width: `${modelPct}%` }}></div>
                 </div>
                 <p className="font-body-sm text-body-sm text-outline">
-                  {modelPct > 0 ? "Model number or name overlap confirmed." : "No explicit model number match found."}
+                  {modelPct > 0 ? "Model number or designation overlap detected." : "No explicit model match detected."}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-sm">
+                <div className="flex justify-between items-end">
+                  <div className="flex items-center gap-sm">
+                    <span className="material-symbols-outlined text-outline text-[20px]">image_search</span>
+                    <span className="font-label-md text-label-md text-on-surface">Image Similarity</span>
+                  </div>
+                  <span className="font-label-sm text-label-sm text-outline px-2 py-0.5 rounded bg-surface-container">
+                    {candidate.imageSimilarity?.isAvailable ? `${Math.round(candidate.imageSimilarity.similarityScore! * 100)}%` : "Not available yet"}
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                  <div className="h-full bg-outline/20 rounded-full" style={{ width: "0%" }}></div>
+                </div>
+                <p className="font-body-sm text-body-sm text-outline">
+                  {candidate.imageSimilarity?.statusMessage || "Visual embedding analysis (CLIP/Vision) will be enabled in Phase 12."}
                 </p>
               </div>
             </div>
+          </div>
+
+          <div className="bg-surface-container-low rounded-[24px] p-xl border border-outline-variant/10 flex flex-col gap-md">
+            <div className="flex items-center gap-sm">
+              <span className="material-symbols-outlined text-primary text-[24px]">compare</span>
+              <h2 className="font-headline-md text-headline-md text-on-background font-bold">Attribute & Dimension Comparison</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-md p-md bg-surface-container-lowest/50 rounded-2xl border border-outline-variant/10">
+              <div className="flex flex-col gap-xs">
+                <span className="font-label-md text-label-md text-primary font-bold">Product A Dimensions</span>
+                {candidate.productA?.dimensions ? (
+                  <div className="grid grid-cols-2 gap-xs text-[12px] text-on-surface">
+                    <span>Length: {candidate.productA.dimensions.length ?? "--"} {candidate.productA.dimensions.dimensionUnit}</span>
+                    <span>Width: {candidate.productA.dimensions.width ?? "--"} {candidate.productA.dimensions.dimensionUnit}</span>
+                    <span>Height: {candidate.productA.dimensions.height ?? "--"} {candidate.productA.dimensions.dimensionUnit}</span>
+                    <span>Weight: {candidate.productA.dimensions.weight ?? "--"} {candidate.productA.dimensions.weightUnit}</span>
+                  </div>
+                ) : (
+                  <span className="text-body-sm text-outline">No physical dimension records.</span>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-xs">
+                <span className="font-label-md text-label-md text-secondary font-bold">Product B Dimensions</span>
+                {candidate.productB?.dimensions ? (
+                  <div className="grid grid-cols-2 gap-xs text-[12px] text-on-surface">
+                    <span>Length: {candidate.productB.dimensions.length ?? "--"} {candidate.productB.dimensions.dimensionUnit}</span>
+                    <span>Width: {candidate.productB.dimensions.width ?? "--"} {candidate.productB.dimensions.dimensionUnit}</span>
+                    <span>Height: {candidate.productB.dimensions.height ?? "--"} {candidate.productB.dimensions.dimensionUnit}</span>
+                    <span>Weight: {candidate.productB.dimensions.weight ?? "--"} {candidate.productB.dimensions.weightUnit}</span>
+                  </div>
+                ) : (
+                  <span className="text-body-sm text-outline">No physical dimension records.</span>
+                )}
+              </div>
+            </div>
+
+            {allAttrKeys.length > 0 && (
+              <div className="overflow-x-auto mt-sm">
+                <table className="w-full text-left border-collapse text-body-sm">
+                  <thead>
+                    <tr className="bg-surface-container-high border-b border-surface-container-lowest">
+                      <th className="p-sm font-label-sm text-on-surface-variant font-semibold">Attribute Key</th>
+                      <th className="p-sm font-label-sm text-on-surface-variant font-semibold">Product A</th>
+                      <th className="p-sm font-label-sm text-on-surface-variant font-semibold">Product B</th>
+                      <th className="p-sm font-label-sm text-on-surface-variant font-semibold text-center">Match</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allAttrKeys.map((key) => {
+                      const valA = attrMapA.get(key);
+                      const valB = attrMapB.get(key);
+                      const isMatch = valA && valB && valA.toLowerCase() === valB.toLowerCase();
+
+                      return (
+                        <tr key={key} className={`border-b border-surface-container-lowest ${isMatch ? "bg-secondary-container/10" : ""}`}>
+                          <td className="p-sm font-mono text-[12px] text-on-surface font-semibold capitalize">{key}</td>
+                          <td className="p-sm text-[12px] text-on-surface">{valA || <span className="text-outline">--</span>}</td>
+                          <td className="p-sm text-[12px] text-on-surface">{valB || <span className="text-outline">--</span>}</td>
+                          <td className="p-sm text-center">
+                            {isMatch ? (
+                              <span className="material-symbols-outlined text-secondary text-[16px]">check_circle</span>
+                            ) : valA && valB ? (
+                              <span className="material-symbols-outlined text-tertiary text-[16px]">difference</span>
+                            ) : (
+                              <span className="text-outline text-[12px]">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
@@ -540,59 +707,6 @@ export const DuplicateDetailPage: React.FC = () => {
                 <div className="flex justify-between">
                   <span>Overall Score:</span>
                   <span className="text-primary font-bold">{(candidate.overallScore * 100).toFixed(2)}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-surface-container-low rounded-[24px] p-lg border border-outline-variant/10 flex flex-col gap-md">
-            <h3 className="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-xs">Detection Criteria</h3>
-            <div className="flex flex-col gap-0">
-              <div className="flex items-start gap-md py-sm border-b border-outline-variant/10">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-[2px] ${brandPct >= 80 ? "bg-primary-container text-on-primary-container" : "bg-surface-container-high text-outline"}`}>
-                  <span className="material-symbols-outlined text-[14px]">{brandPct >= 80 ? "check" : "close"}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-label-md text-label-md text-on-surface">Brand Alignment</span>
-                  <span className="font-body-sm text-[12px] text-outline">
-                    {brandPct >= 80 ? `Matching brand: '${candidate.productA?.brand}'` : "Brands differ or unverified"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-md py-sm border-b border-outline-variant/10">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-[2px] ${categoryPct >= 50 ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high text-outline"}`}>
-                  <span className="material-symbols-outlined text-[14px]">{categoryPct >= 50 ? "check" : "close"}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-label-md text-label-md text-on-surface">Category Taxonomy</span>
-                  <span className="font-body-sm text-[12px] text-outline">
-                    {categoryPct >= 50 ? "Same catalog category taxonomy path" : "Different catalog categories"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-md py-sm border-b border-outline-variant/10">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-[2px] ${semanticPct >= 50 ? "bg-primary-container text-on-primary-container" : "bg-surface-container-high text-outline"}`}>
-                  <span className="material-symbols-outlined text-[14px]">{semanticPct >= 50 ? "check" : "close"}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-label-md text-label-md text-on-surface">pgvector Semantic Match</span>
-                  <span className="font-body-sm text-[12px] text-outline">
-                    Cosine similarity of text embeddings: {semanticPct}%
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-md py-sm">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-[2px] ${attributePct > 0 ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high text-outline"}`}>
-                  <span className="material-symbols-outlined text-[14px]">{attributePct > 0 ? "check" : "close"}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-label-md text-label-md text-on-surface">Attribute Match</span>
-                  <span className="font-body-sm text-[12px] text-outline">
-                    {attributePct > 0 ? `Shared attribute values match: ${attributePct}%` : "No matching attribute keys found"}
-                  </span>
                 </div>
               </div>
             </div>

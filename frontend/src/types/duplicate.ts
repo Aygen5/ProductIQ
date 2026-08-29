@@ -9,6 +9,20 @@ export const DuplicateStatusEnum = {
   AutoMerged: 3,
 } as const;
 
+export interface CandidateExplanation {
+  summary: string;
+  confidenceLevel: string;
+  keyMatches: string[];
+  keyDifferences: string[];
+  recommendation: string;
+}
+
+export interface ImageSimilarityResult {
+  isAvailable: boolean;
+  similarityScore: number | null;
+  statusMessage: string;
+}
+
 export interface DuplicateCandidateSummary {
   id: string;
   productAId: string;
@@ -36,6 +50,7 @@ export interface DuplicateCandidateDetail {
   visualSimilarity: number | null;
   brandMatch: boolean;
   modelMatch: boolean;
+  categoryMatch: boolean;
   status: DuplicateStatus;
   matchSignals: string | null;
   aiExplanation: string | null;
@@ -43,6 +58,8 @@ export interface DuplicateCandidateDetail {
   createdAt: string;
   updatedAt: string | null;
   reviewedAt?: string | null;
+  explanation: CandidateExplanation;
+  imageSimilarity: ImageSimilarityResult;
 }
 
 export interface DuplicateCandidatesSummary {
