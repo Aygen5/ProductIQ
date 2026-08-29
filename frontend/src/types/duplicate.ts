@@ -17,6 +17,17 @@ export interface CandidateExplanation {
   recommendation: string;
 }
 
+export interface CandidateAiExplanation {
+  summary: string;
+  reasoning: string;
+  keyMatches: string[];
+  keyConflicts: string[];
+  operatorGuidance: string;
+  status: "Generated" | "Cached" | "Fallback" | "Disabled" | string;
+  generatedAt?: string | null;
+  modelUsed?: string | null;
+}
+
 export interface ImageSimilarityResult {
   isAvailable: boolean;
   similarityScore: number | null;
@@ -59,6 +70,7 @@ export interface DuplicateCandidateDetail {
   status: DuplicateStatus;
   matchSignals: string | null;
   aiExplanation: string | null;
+  aiExplanationDetails?: CandidateAiExplanation | null;
   resolutionNotes: string | null;
   createdAt: string;
   updatedAt: string | null;

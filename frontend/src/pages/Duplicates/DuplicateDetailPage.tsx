@@ -472,33 +472,56 @@ export const DuplicateDetailPage: React.FC = () => {
           </div>
 
           <div className="bg-primary/5 rounded-[24px] p-xl border border-primary/20 flex flex-col gap-md relative overflow-hidden">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-sm">
               <div className="flex items-center gap-sm">
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                   <span className="material-symbols-outlined text-primary text-[20px]">psychology</span>
                 </div>
                 <h2 className="font-headline-md text-headline-md text-on-background font-bold">Why might these products be duplicates?</h2>
               </div>
-              <span className="px-sm py-1 rounded-lg bg-primary-container text-on-primary-container font-label-sm text-label-sm font-bold">
-                {candidate.explanation?.confidenceLevel || "Automated Synthesis"}
-              </span>
+              <div className="flex items-center gap-xs">
+                {candidate.aiExplanationDetails?.status === "Generated" || candidate.aiExplanationDetails?.status === "Cached" ? (
+                  <span className="px-sm py-1 rounded-lg bg-primary-container text-on-primary-container font-label-sm text-label-sm font-bold flex items-center gap-xs shadow-sm">
+                    <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                    AI Explanation ({candidate.aiExplanationDetails.modelUsed || "GPT-4o-mini"})
+                  </span>
+                ) : (
+                  <span className="px-sm py-1 rounded-lg bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm font-semibold flex items-center gap-xs">
+                    <span className="material-symbols-outlined text-[14px]">analytics</span>
+                    System Evidence
+                  </span>
+                )}
+                <span className="px-sm py-1 rounded-lg bg-surface-container-high text-on-surface font-label-sm text-label-sm font-bold">
+                  {candidate.explanation?.confidenceLevel || "Automated Synthesis"}
+                </span>
+              </div>
             </div>
 
             <p className="font-body-lg text-body-lg text-on-background leading-relaxed">
-              {candidate.explanation?.summary}
+              {candidate.aiExplanationDetails?.summary || candidate.explanation?.summary}
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-md mt-sm">
+            {candidate.aiExplanationDetails?.reasoning && (
+              <div className="p-md rounded-2xl bg-surface-container-lowest/60 border border-outline-variant/10 font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                <div className="flex items-center gap-xs text-primary font-label-sm text-label-sm uppercase tracking-wider font-bold mb-xs">
+                  <span className="material-symbols-outlined text-[16px]">account_tree</span>
+                  Signal Analysis & Reasoning
+                </div>
+                {candidate.aiExplanationDetails.reasoning}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-md mt-xs">
               <div className="p-md rounded-2xl bg-surface-container-lowest/70 border border-outline-variant/10 flex flex-col gap-xs">
                 <div className="flex items-center gap-xs text-secondary font-label-md text-label-md font-bold mb-xs">
                   <span className="material-symbols-outlined text-[18px]">verified</span>
-                  Matching Signals
+                  Key Matching Signals
                 </div>
-                {candidate.explanation?.keyMatches && candidate.explanation.keyMatches.length > 0 ? (
+                {(candidate.aiExplanationDetails?.keyMatches?.length ? candidate.aiExplanationDetails.keyMatches : candidate.explanation?.keyMatches)?.length ? (
                   <ul className="flex flex-col gap-xs text-body-sm text-on-surface">
-                    {candidate.explanation.keyMatches.map((m, idx) => (
+                    {(candidate.aiExplanationDetails?.keyMatches?.length ? candidate.aiExplanationDetails.keyMatches : candidate.explanation.keyMatches).map((m, idx) => (
                       <li key={idx} className="flex items-start gap-xs">
-                        <span className="material-symbols-outlined text-secondary text-[16px] mt-0.5">check</span>
+                        <span className="material-symbols-outlined text-secondary text-[16px] mt-0.5">check_circle</span>
                         <span>{m}</span>
                       </li>
                     ))}
@@ -510,14 +533,14 @@ export const DuplicateDetailPage: React.FC = () => {
 
               <div className="p-md rounded-2xl bg-surface-container-lowest/70 border border-outline-variant/10 flex flex-col gap-xs">
                 <div className="flex items-center gap-xs text-tertiary font-label-md text-label-md font-bold mb-xs">
-                  <span className="material-symbols-outlined text-[18px]">info</span>
-                  Differences & Caveats
+                  <span className="material-symbols-outlined text-[18px]">warning</span>
+                  Key Differences & Conflicts
                 </div>
-                {candidate.explanation?.keyDifferences && candidate.explanation.keyDifferences.length > 0 ? (
+                {(candidate.aiExplanationDetails?.keyConflicts?.length ? candidate.aiExplanationDetails.keyConflicts : candidate.explanation?.keyDifferences)?.length ? (
                   <ul className="flex flex-col gap-xs text-body-sm text-on-surface">
-                    {candidate.explanation.keyDifferences.map((d, idx) => (
+                    {(candidate.aiExplanationDetails?.keyConflicts?.length ? candidate.aiExplanationDetails.keyConflicts : candidate.explanation.keyDifferences).map((d, idx) => (
                       <li key={idx} className="flex items-start gap-xs">
-                        <span className="material-symbols-outlined text-tertiary text-[16px] mt-0.5">arrow_right</span>
+                        <span className="material-symbols-outlined text-tertiary text-[16px] mt-0.5">error</span>
                         <span>{d}</span>
                       </li>
                     ))}
@@ -528,12 +551,20 @@ export const DuplicateDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {candidate.explanation?.recommendation && (
-              <div className="mt-xs p-sm rounded-xl bg-surface-container font-body-sm text-body-sm text-on-surface flex items-center gap-sm">
-                <span className="material-symbols-outlined text-primary text-[18px]">lightbulb</span>
-                <span><strong>Recommendation:</strong> {candidate.explanation.recommendation}</span>
+            {(candidate.aiExplanationDetails?.operatorGuidance || candidate.explanation?.recommendation) && (
+              <div className="mt-xs p-md rounded-xl bg-surface-container font-body-sm text-body-sm text-on-surface flex items-start gap-sm border border-outline-variant/10">
+                <span className="material-symbols-outlined text-primary text-[20px] mt-0.5">lightbulb</span>
+                <div>
+                  <strong className="text-on-background">Operator Guidance:</strong>{" "}
+                  <span>{candidate.aiExplanationDetails?.operatorGuidance || candidate.explanation.recommendation}</span>
+                </div>
               </div>
             )}
+
+            <div className="flex items-center gap-xs text-[11px] text-outline mt-xs pt-xs border-t border-outline-variant/10">
+              <span className="material-symbols-outlined text-[14px]">shield</span>
+              <span>Automated AI explanation synthesizes 7 scoring signals (CLIP visual, text, semantic, attributes). The final deduplication decision is made by the human operator.</span>
+            </div>
           </div>
 
           <div className="bg-surface-container-low rounded-[24px] p-xl border border-outline-variant/10 flex flex-col gap-lg">
