@@ -1,7 +1,12 @@
 namespace ProductIQ.Application.Services;
 
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -56,14 +61,23 @@ public class DuplicateScoringService : IDuplicateScoringService
             .Distinct()
             .ToList();
 
-        var embeddings = await _context.ProductEmbeddings
+        var textEmbeddings = await _context.ProductEmbeddings
             .AsNoTracking()
             .Where(e => productIds.Contains(e.ProductId) && e.EmbeddingType == EmbeddingType.Text && e.Vector != null)
             .ToListAsync(cancellationToken);
 
-        var embeddingMap = embeddings
+        var textEmbeddingMap = textEmbeddings
             .GroupBy(e => e.ProductId)
             .ToDictionary(g => g.Key, g => g.First().Vector);
+
+        var imageEmbeddings = await _context.ProductImageEmbeddings
+            .AsNoTracking()
+            .Where(e => productIds.Contains(e.ProductId) && e.Vector != null)
+            .ToListAsync(cancellationToken);
+
+        var imageEmbeddingMap = imageEmbeddings
+            .GroupBy(e => e.ProductId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Vector!).ToList());
 
         var scoredList = new List<CandidateScoringResultDto>();
         decimal sumScores = 0;
@@ -72,15 +86,19 @@ public class DuplicateScoringService : IDuplicateScoringService
 
         foreach (var candidate in candidates)
         {
-            embeddingMap.TryGetValue(candidate.ProductAId, out var vecA);
-            embeddingMap.TryGetValue(candidate.ProductBId, out var vecB);
+            textEmbeddingMap.TryGetValue(candidate.ProductAId, out var vecA);
+            textEmbeddingMap.TryGetValue(candidate.ProductBId, out var vecB);
 
-            var breakdown = CalculateScore(candidate.ProductA, candidate.ProductB, vecA, vecB);
+            imageEmbeddingMap.TryGetValue(candidate.ProductAId, out var imgVecsA);
+            imageEmbeddingMap.TryGetValue(candidate.ProductBId, out var imgVecsB);
+
+            var breakdown = CalculateScore(candidate.ProductA, candidate.ProductB, vecA, vecB, imgVecsA, imgVecsB);
 
             candidate.OverallScore = breakdown.OverallScore;
             candidate.TextSimilarity = breakdown.TextSimilarity;
             candidate.SemanticSimilarity = breakdown.SemanticSimilarity;
             candidate.AttributeSimilarity = breakdown.AttributeSimilarity;
+            candidate.VisualSimilarity = breakdown.ImageSimilarity;
             candidate.BrandMatch = breakdown.BrandMatch;
             candidate.ModelMatch = breakdown.ModelMatch;
             candidate.MatchSignals = JsonSerializer.Serialize(breakdown.Signals);
@@ -145,12 +163,25 @@ public class DuplicateScoringService : IDuplicateScoringService
             .Select(e => e.Vector)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var breakdown = CalculateScore(candidate.ProductA, candidate.ProductB, vecA, vecB);
+        var imgVecsA = await _context.ProductImageEmbeddings
+            .AsNoTracking()
+            .Where(e => e.ProductId == candidate.ProductAId && e.Vector != null)
+            .Select(e => e.Vector!)
+            .ToListAsync(cancellationToken);
+
+        var imgVecsB = await _context.ProductImageEmbeddings
+            .AsNoTracking()
+            .Where(e => e.ProductId == candidate.ProductBId && e.Vector != null)
+            .Select(e => e.Vector!)
+            .ToListAsync(cancellationToken);
+
+        var breakdown = CalculateScore(candidate.ProductA, candidate.ProductB, vecA, vecB, imgVecsA, imgVecsB);
 
         candidate.OverallScore = breakdown.OverallScore;
         candidate.TextSimilarity = breakdown.TextSimilarity;
         candidate.SemanticSimilarity = breakdown.SemanticSimilarity;
         candidate.AttributeSimilarity = breakdown.AttributeSimilarity;
+        candidate.VisualSimilarity = breakdown.ImageSimilarity;
         candidate.BrandMatch = breakdown.BrandMatch;
         candidate.ModelMatch = breakdown.ModelMatch;
         candidate.MatchSignals = JsonSerializer.Serialize(breakdown.Signals);
@@ -177,25 +208,43 @@ public class DuplicateScoringService : IDuplicateScoringService
         float[]? vectorA,
         float[]? vectorB)
     {
+        return CalculateScore(productA, productB, vectorA, vectorB, null, null);
+    }
+
+    public DuplicateScoreBreakdownDto CalculateScore(
+        Product productA,
+        Product productB,
+        float[]? vectorA,
+        float[]? vectorB,
+        IReadOnlyList<float[]>? imageVectorsA,
+        IReadOnlyList<float[]>? imageVectorsB)
+    {
         var brandScore = CalculateBrandScore(productA.Brand, productB.Brand);
         var categoryScore = CalculateCategoryScore(productA.Category, productB.Category, productA.NodePath, productB.NodePath);
         var modelScore = CalculateModelScore(productA.ModelName, productA.ModelNumber, productB.ModelName, productB.ModelNumber);
         var textScore = CalculateTextSimilarity(productA, productB);
         var semanticScore = CalculateSemanticSimilarity(vectorA, vectorB, textScore);
         var attributeScore = CalculateAttributeSimilarity(productA, productB);
+        var imageScore = CalculateImageSimilarity(imageVectorsA, imageVectorsB);
 
         var totalWeight = _options.BrandWeight + _options.CategoryWeight + _options.ModelWeight + _options.TextWeight + _options.SemanticWeight + _options.AttributeWeight;
-        if (totalWeight <= 0)
-        {
-            totalWeight = 1.0m;
-        }
-
         var weightedSum = (brandScore * _options.BrandWeight)
                         + (categoryScore * _options.CategoryWeight)
                         + (modelScore * _options.ModelWeight)
                         + (textScore * _options.TextWeight)
                         + (semanticScore * _options.SemanticWeight)
                         + (attributeScore * _options.AttributeWeight);
+
+        if (imageScore.HasValue && _options.ImageWeight > 0)
+        {
+            totalWeight += _options.ImageWeight;
+            weightedSum += imageScore.Value * _options.ImageWeight;
+        }
+
+        if (totalWeight <= 0)
+        {
+            totalWeight = 1.0m;
+        }
 
         var overallScore = Math.Clamp(Math.Round(weightedSum / totalWeight, 4), 0.0000m, 1.0000m);
 
@@ -214,9 +263,15 @@ public class DuplicateScoringService : IDuplicateScoringService
                 model = _options.ModelWeight,
                 text = _options.TextWeight,
                 semantic = _options.SemanticWeight,
-                attribute = _options.AttributeWeight
+                attribute = _options.AttributeWeight,
+                image = _options.ImageWeight
             }}
         };
+
+        if (imageScore.HasValue)
+        {
+            signals["image_similarity"] = imageScore.Value;
+        }
 
         return new DuplicateScoreBreakdownDto
         {
@@ -226,12 +281,57 @@ public class DuplicateScoringService : IDuplicateScoringService
             TextSimilarity = textScore,
             SemanticSimilarity = semanticScore,
             AttributeSimilarity = attributeScore,
+            ImageSimilarity = imageScore,
             OverallScore = overallScore,
             BrandMatch = brandScore >= 0.8m,
             ModelMatch = modelScore >= 0.5m,
             CategoryMatch = categoryScore >= 0.5m,
             Signals = signals
         };
+    }
+
+    private static decimal? CalculateImageSimilarity(IReadOnlyList<float[]>? vecsA, IReadOnlyList<float[]>? vecsB)
+    {
+        if (vecsA == null || vecsB == null || vecsA.Count == 0 || vecsB.Count == 0)
+        {
+            return null;
+        }
+
+        var maxSim = 0.0;
+
+        foreach (var vA in vecsA)
+        {
+            if (vA == null || vA.Length == 0) continue;
+
+            foreach (var vB in vecsB)
+            {
+                if (vB == null || vB.Length == 0 || vA.Length != vB.Length) continue;
+
+                double dot = 0;
+                double normA = 0;
+                double normB = 0;
+
+                for (var i = 0; i < vA.Length; i++)
+                {
+                    dot += vA[i] * vB[i];
+                    normA += vA[i] * vA[i];
+                    normB += vB[i] * vB[i];
+                }
+
+                var denom = Math.Sqrt(normA) * Math.Sqrt(normB);
+                if (denom > 0)
+                {
+                    var cos = dot / denom;
+                    var normCos = Math.Clamp((cos + 1.0) / 2.0, 0.0, 1.0);
+                    if (normCos > maxSim)
+                    {
+                        maxSim = normCos;
+                    }
+                }
+            }
+        }
+
+        return Math.Clamp(Math.Round((decimal)maxSim, 4), 0.0000m, 1.0000m);
     }
 
     private static decimal CalculateBrandScore(string? brandA, string? brandB)

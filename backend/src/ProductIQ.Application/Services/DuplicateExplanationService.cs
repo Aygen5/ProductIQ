@@ -1,5 +1,7 @@
 namespace ProductIQ.Application.Services;
 
+using System;
+using System.Collections.Generic;
 using System.Text;
 using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
@@ -14,6 +16,7 @@ public class DuplicateExplanationService : IDuplicateExplanationService
         decimal? textSimilarity,
         decimal? semanticSimilarity,
         decimal? attributeSimilarity,
+        decimal? visualSimilarity,
         bool brandMatch,
         bool modelMatch,
         bool categoryMatch,
@@ -74,6 +77,15 @@ public class DuplicateExplanationService : IDuplicateExplanationService
             keyMatches.Add($"Strong conceptual embedding similarity ({semanticSimilarity.Value:P0} cosine similarity in vector space).");
         }
 
+        if (visualSimilarity.HasValue && visualSimilarity.Value >= 0.70m)
+        {
+            keyMatches.Add($"High visual appearance similarity between product images ({visualSimilarity.Value:P0} visual match via CLIP embeddings).");
+        }
+        else if (visualSimilarity.HasValue && visualSimilarity.Value < 0.40m)
+        {
+            keyDifferences.Add($"Low visual image similarity ({visualSimilarity.Value:P0} visual match).");
+        }
+
         if (attributeSimilarity.HasValue && attributeSimilarity.Value >= 0.30m)
         {
             keyMatches.Add($"Shared product attributes and dimension profiles ({attributeSimilarity.Value:P0} attribute match).");
@@ -95,7 +107,7 @@ public class DuplicateExplanationService : IDuplicateExplanationService
             sb.Append($"These products have a high duplicate likelihood (composite score: {overallScore:P1}). ");
             if (brandMatch && categoryMatch)
             {
-                sb.Append($"They share the same brand ('{productA.Brand}') and catalog taxonomy category, with high title and vector embedding similarity. ");
+                sb.Append($"They share the same brand ('{productA.Brand}') and catalog taxonomy category, with high title, semantic, and visual embedding similarity. ");
             }
             else
             {

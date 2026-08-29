@@ -12,6 +12,7 @@ public interface IDuplicateExplanationService
         decimal? textSimilarity,
         decimal? semanticSimilarity,
         decimal? attributeSimilarity,
+        decimal? visualSimilarity,
         bool brandMatch,
         bool modelMatch,
         bool categoryMatch,

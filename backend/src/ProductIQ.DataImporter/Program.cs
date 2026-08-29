@@ -60,7 +60,8 @@ using (var scope = host.Services.CreateScope())
         foreach (var sc in topCandidates)
         {
             var b = sc.ScoreBreakdown;
-            logger.LogInformation("{Rank}. [{AsinA}] {NameA} <===> [{AsinB}] {NameB} | Overall: {Overall:P2} (Brand: {Brand:P0}, Cat: {Cat:P0}, Model: {Model:P0}, Text: {Text:P0}, Sem: {Sem:P0}, Attr: {Attr:P0})",
+            var imgStr = b.ImageSimilarity.HasValue ? $"{b.ImageSimilarity.Value:P0}" : "N/A";
+            logger.LogInformation("{Rank}. [{AsinA}] {NameA} <===> [{AsinB}] {NameB} | Overall: {Overall:P2} (Brand: {Brand:P0}, Cat: {Cat:P0}, Model: {Model:P0}, Text: {Text:P0}, Sem: {Sem:P0}, Attr: {Attr:P0}, Img: {Img})",
                 rank++,
                 sc.ProductAAsin,
                 sc.ProductAName,
@@ -72,7 +73,8 @@ using (var scope = host.Services.CreateScope())
                 b.ModelScore,
                 b.TextSimilarity,
                 b.SemanticSimilarity,
-                b.AttributeSimilarity);
+                b.AttributeSimilarity,
+                imgStr);
         }
     }
     else if (args.Contains("--detect-candidates", StringComparer.OrdinalIgnoreCase))

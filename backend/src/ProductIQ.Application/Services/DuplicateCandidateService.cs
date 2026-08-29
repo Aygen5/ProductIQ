@@ -503,8 +503,13 @@ public class DuplicateCandidateService : IDuplicateCandidateService
                 CreatedAt = c.ProductB.CreatedAt
             } : null,
             OverallScore = c.OverallScore,
+            TextSimilarity = c.TextSimilarity,
+            SemanticSimilarity = c.SemanticSimilarity,
+            AttributeSimilarity = c.AttributeSimilarity,
+            VisualSimilarity = c.VisualSimilarity,
             BrandMatch = c.BrandMatch,
             ModelMatch = c.ModelMatch,
+            CategoryMatch = IsValidMatch(c.ProductA?.Category ?? c.ProductA?.NodePath, c.ProductB?.Category ?? c.ProductB?.NodePath),
             Status = c.Status,
             MatchSignals = c.MatchSignals,
             CreatedAt = c.CreatedAt
@@ -520,6 +525,8 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         var catB = prodB?.Category ?? prodB?.NodePath;
         var categoryMatch = IsValidMatch(catA, catB);
 
+        var effectiveVisualSimilarity = candidate.VisualSimilarity ?? imageSimilarity.SimilarityScore;
+
         var explanation = (prodA != null && prodB != null)
             ? _explanationService.GenerateExplanation(
                 prodA,
@@ -528,6 +535,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
                 candidate.TextSimilarity,
                 candidate.SemanticSimilarity,
                 candidate.AttributeSimilarity,
+                effectiveVisualSimilarity,
                 candidate.BrandMatch,
                 candidate.ModelMatch,
                 categoryMatch)
