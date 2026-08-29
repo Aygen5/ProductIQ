@@ -416,6 +416,23 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         detailDto.AiExplanationDetails = aiExplanation;
         detailDto.AiExplanation = aiExplanation?.Summary ?? detailDto.Explanation.Summary;
 
+        if (detailDto.RiskAssessment != null)
+        {
+            var riskPromptContext = new RiskPromptContextDto
+            {
+                CandidateId = candidate.Id,
+                OverallDuplicateScore = candidate.OverallScore,
+                RiskScore = detailDto.RiskAssessment.RiskScore,
+                RiskLevel = detailDto.RiskAssessment.RiskLevel,
+                ProductAName = detailDto.ProductA?.Name ?? string.Empty,
+                ProductBName = detailDto.ProductB?.Name ?? string.Empty,
+                RiskSignals = detailDto.RiskAssessment.RiskSignals,
+                DeterministicSummary = detailDto.RiskAssessment.Summary
+            };
+
+            detailDto.RiskAssessment.AiExplanation = await _llmService.GenerateRiskExplanationAsync(riskPromptContext, cancellationToken);
+        }
+
         return detailDto;
     }
 

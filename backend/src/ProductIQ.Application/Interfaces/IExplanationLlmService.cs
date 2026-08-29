@@ -7,4 +7,5 @@ using ProductIQ.Application.DTOs;
 public interface IExplanationLlmService
 {
     Task<CandidateAiExplanationDto> GenerateExplanationAsync(ExplanationPromptContextDto context, CancellationToken cancellationToken = default);
+    Task<CandidateAiRiskExplanationDto> GenerateRiskExplanationAsync(RiskPromptContextDto context, CancellationToken cancellationToken = default);
 }

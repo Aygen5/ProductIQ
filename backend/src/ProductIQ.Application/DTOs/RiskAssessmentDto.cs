@@ -11,4 +11,5 @@ public class RiskAssessmentDto
     public int ConflictingSignalsCount { get; set; }
     public int DataQualityIssuesCount { get; set; }
     public bool RequiresImmediateReview { get; set; }
+    public CandidateAiRiskExplanationDto? AiExplanation { get; set; }
 }

@@ -238,6 +238,163 @@ CRITICAL RULES:
         return null;
     }
 
+    public async Task<CandidateAiRiskExplanationDto> GenerateRiskExplanationAsync(RiskPromptContextDto context, CancellationToken cancellationToken = default)
+    {
+        if (!_options.Enabled)
+        {
+            _logger.LogInformation("OpenAI Explanation Service is disabled via configuration. Using deterministic risk fallback.");
+            return GenerateFallbackRiskExplanation(context, "OpenAI explanation is disabled via configuration.");
+        }
+
+        var apiKey = GetApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            _logger.LogWarning("OpenAI API key is missing. Using deterministic risk explanation fallback.");
+            return GenerateFallbackRiskExplanation(context, "OpenAI API key is not configured.");
+        }
+
+        var systemPrompt = BuildRiskSystemPrompt();
+        var userPrompt = BuildRiskUserPrompt(context);
+
+        var payload = new
+        {
+            model = _options.Model,
+            temperature = _options.Temperature,
+            response_format = new { type = "json_object" },
+            messages = new[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userPrompt }
+            }
+        };
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(Math.Max(5, _options.TimeoutSeconds)));
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            request.Content = JsonContent.Create(payload);
+
+            using var response = await _httpClient.SendAsync(request, cts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cts.Token);
+                _logger.LogWarning("OpenAI Risk Completion failed for candidate {CandidateId} with status {StatusCode}: {Error}",
+                    context.CandidateId, response.StatusCode, errorContent);
+                return GenerateFallbackRiskExplanation(context, $"OpenAI API returned status {response.StatusCode}.");
+            }
+
+            var responseBody = await response.Content.ReadFromJsonAsync<OpenAiChatResponse>(cancellationToken: cts.Token);
+            var rawContent = responseBody?.Choices?.FirstOrDefault()?.Message?.Content;
+
+            if (string.IsNullOrWhiteSpace(rawContent))
+            {
+                _logger.LogWarning("OpenAI returned an empty content message for risk candidate {CandidateId}.", context.CandidateId);
+                return GenerateFallbackRiskExplanation(context, "OpenAI returned empty message content.");
+            }
+
+            var parsedResult = JsonSerializer.Deserialize<OpenAiRiskExplanationJsonPayload>(rawContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (parsedResult == null || string.IsNullOrWhiteSpace(parsedResult.Summary))
+            {
+                _logger.LogWarning("Failed to deserialize structured JSON risk explanation from OpenAI for candidate {CandidateId}.", context.CandidateId);
+                return GenerateFallbackRiskExplanation(context, "Failed to parse structured JSON risk explanation.");
+            }
+
+            return new CandidateAiRiskExplanationDto
+            {
+                Summary = parsedResult.Summary.Trim(),
+                Reasoning = parsedResult.Reasoning?.Trim() ?? string.Empty,
+                KeyRisks = parsedResult.KeyRisks ?? new List<string>(),
+                OperatorGuidance = parsedResult.OperatorGuidance?.Trim() ?? string.Empty,
+                Status = "Generated",
+                GeneratedAt = DateTime.UtcNow,
+                ModelUsed = _options.Model
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _logger.LogWarning(ex, "Exception occurred during OpenAI risk explanation generation for candidate {CandidateId}: {Message}",
+                context.CandidateId, ex.Message);
+            return GenerateFallbackRiskExplanation(context, ex.Message);
+        }
+    }
+
+    private static CandidateAiRiskExplanationDto GenerateFallbackRiskExplanation(RiskPromptContextDto context, string reason)
+    {
+        var summary = $"Catalog risk evaluated at {context.RiskScore}/100 ({context.RiskLevel} Risk). {context.DeterministicSummary}";
+        var keyRisks = context.RiskSignals.Select(s => $"{s.Name}: {s.Description} ({s.Evidence})").ToList();
+
+        var reasoning = context.RiskSignals.Count > 0
+            ? $"Identified {context.RiskSignals.Count} concrete risk indicators contributing a combined score of {context.RiskScore}/100. Primary hazard involves {context.RiskSignals.First().Name}."
+            : "No severe data conflicts or catalog hazards detected.";
+
+        var guidance = context.RiskScore >= 50
+            ? "Operator manual inspection is strongly recommended before performing catalog deduplication or merging."
+            : "Routine review recommended during standard catalog audits.";
+
+        return new CandidateAiRiskExplanationDto
+        {
+            Summary = summary,
+            Reasoning = reasoning,
+            KeyRisks = keyRisks,
+            OperatorGuidance = guidance,
+            Status = "Fallback",
+            GeneratedAt = DateTime.UtcNow,
+            ModelUsed = "DeterministicFallback"
+        };
+    }
+
+    private static string BuildRiskSystemPrompt()
+    {
+        return @"You are a catalog risk explanation assistant for an e-commerce catalog auditing system.
+Your sole task is to generate a neutral, factual, and concise explanation of why the automated risk detection engine assigned a specific catalog risk score and risk level to this duplicate candidate pair.
+
+CRITICAL RULES:
+1. Do NOT calculate or alter the risk score or risk level.
+2. Do NOT make the final catalog decision.
+3. Clearly explain how the identified conflicting fields, inconsistencies, and specification discrepancies create catalog merge hazards.
+4. Output STRICTLY a valid JSON object with the following schema:
+{
+  ""summary"": ""Concise 1-2 sentence overview explaining the primary risk factors."",
+  ""reasoning"": ""2-3 sentences explaining how detected discrepancies and signals contributed to this risk posture."",
+  ""keyRisks"": [""Plain language risk statement with evidence"", ...],
+  ""operatorGuidance"": ""Clear guidance on what technical differences the operator must verify before taking action.""
+}";
+    }
+
+    private static string BuildRiskUserPrompt(RiskPromptContextDto context)
+    {
+        var inputData = new
+        {
+            candidateId = context.CandidateId,
+            duplicateScorePercent = $"{context.OverallDuplicateScore:P1}",
+            riskScore = $"{context.RiskScore}/100",
+            riskLevel = context.RiskLevel,
+            productA = context.ProductAName,
+            productB = context.ProductBName,
+            detectedRiskSignals = context.RiskSignals.Select(s => new
+            {
+                code = s.Code,
+                name = s.Name,
+                category = s.Category,
+                severity = s.Severity,
+                scoreContribution = s.ScoreContribution,
+                description = s.Description,
+                evidence = s.Evidence
+            }),
+            initialRiskSummary = context.DeterministicSummary
+        };
+
+        return JsonSerializer.Serialize(inputData, new JsonSerializerOptions { WriteIndented = true });
+    }
+
     private class OpenAiChatResponse
     {
         [JsonPropertyName("choices")]
@@ -262,6 +419,14 @@ CRITICAL RULES:
         public string? Reasoning { get; set; }
         public List<string>? KeyMatches { get; set; }
         public List<string>? KeyConflicts { get; set; }
+        public string? OperatorGuidance { get; set; }
+    }
+
+    private class OpenAiRiskExplanationJsonPayload
+    {
+        public string? Summary { get; set; }
+        public string? Reasoning { get; set; }
+        public List<string>? KeyRisks { get; set; }
         public string? OperatorGuidance { get; set; }
     }
 }
