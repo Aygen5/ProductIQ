@@ -27,8 +27,14 @@ public static class DependencyInjection
         services.AddScoped<IProductIQDbContext>(provider => provider.GetRequiredService<ProductIQDbContext>());
 
         services.Configure<EmbeddingOptions>(configuration.GetSection(EmbeddingOptions.SectionName));
+        services.Configure<ClipOptions>(configuration.GetSection(ClipOptions.SectionName));
 
         services.AddHttpClient<IEmbeddingService, OpenAiEmbeddingService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
+
+        services.AddHttpClient<IClipImageEmbeddingService, ClipImageEmbeddingService>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
         });
