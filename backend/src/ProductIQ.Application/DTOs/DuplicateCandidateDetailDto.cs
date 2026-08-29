@@ -16,6 +16,7 @@ public class DuplicateCandidateDetailDto
     public decimal? VisualSimilarity { get; set; }
     public bool BrandMatch { get; set; }
     public bool ModelMatch { get; set; }
+    public bool CategoryMatch { get; set; }
     public DuplicateStatus Status { get; set; }
     public string? MatchSignals { get; set; }
     public string? AiExplanation { get; set; }
@@ -23,4 +24,6 @@ public class DuplicateCandidateDetailDto
     public DateTime? ReviewedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public CandidateExplanationDto Explanation { get; set; } = new();
+    public ImageSimilarityResultDto ImageSimilarity { get; set; } = new();
 }
