@@ -27,4 +27,5 @@ public class DuplicateCandidateDetailDto
     public CandidateExplanationDto Explanation { get; set; } = new();
     public CandidateAiExplanationDto? AiExplanationDetails { get; set; }
     public ImageSimilarityResultDto ImageSimilarity { get; set; } = new();
+    public RiskAssessmentDto RiskAssessment { get; set; } = new();
 }

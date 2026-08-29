@@ -19,5 +19,7 @@ public class DuplicateCandidateSummaryDto
     public bool CategoryMatch { get; set; }
     public DuplicateStatus Status { get; set; }
     public string? MatchSignals { get; set; }
+    public int RiskScore { get; set; }
+    public string RiskLevel { get; set; } = "Low";
     public DateTime CreatedAt { get; set; }
 }
