@@ -78,6 +78,30 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
         return Ok(candidate);
     }
 
+    [HttpGet("{id:guid}/risk")]
+    [ProducesResponseType(typeof(RiskAssessmentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<RiskAssessmentDto>> GetRiskAssessment(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var candidate = await duplicateCandidateService.GetCandidateDetailByIdAsync(id, cancellationToken);
+
+        if (candidate == null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Duplicate Candidate Not Found",
+                Detail = $"Duplicate candidate with identifier '{id}' was not found.",
+                Instance = HttpContext.Request.Path
+            });
+        }
+
+        return Ok(candidate.RiskAssessment);
+    }
+
     [HttpPatch("{id:guid}/confirm")]
     [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

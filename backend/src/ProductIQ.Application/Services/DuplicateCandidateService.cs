@@ -18,6 +18,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
     private readonly IDuplicateExplanationService _explanationService;
     private readonly IImageSimilarityService _imageSimilarityService;
     private readonly IExplanationLlmService _llmService;
+    private readonly IRiskDetectionService _riskDetectionService;
     private readonly CandidateDetectionOptions _options;
     private readonly ILogger<DuplicateCandidateService> _logger;
 
@@ -26,6 +27,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         IDuplicateExplanationService explanationService,
         IImageSimilarityService imageSimilarityService,
         IExplanationLlmService llmService,
+        IRiskDetectionService riskDetectionService,
         IOptions<CandidateDetectionOptions> options,
         ILogger<DuplicateCandidateService> logger)
     {
@@ -33,6 +35,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         _explanationService = explanationService;
         _imageSimilarityService = imageSimilarityService;
         _llmService = llmService;
+        _riskDetectionService = riskDetectionService;
         _options = options.Value;
         _logger = logger;
     }
@@ -530,8 +533,10 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         return await query.CountAsync(cancellationToken);
     }
 
-    private static DuplicateCandidateSummaryDto MapToSummaryDto(DuplicateCandidate c)
+    private DuplicateCandidateSummaryDto MapToSummaryDto(DuplicateCandidate c)
     {
+        var (riskScore, riskLevel) = _riskDetectionService.CalculateQuickRisk(c, c.ProductA, c.ProductB);
+
         return new DuplicateCandidateSummaryDto
         {
             Id = c.Id,
@@ -575,6 +580,8 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             CategoryMatch = IsValidMatch(c.ProductA?.Category ?? c.ProductA?.NodePath, c.ProductB?.Category ?? c.ProductB?.NodePath),
             Status = c.Status,
             MatchSignals = c.MatchSignals,
+            RiskScore = riskScore,
+            RiskLevel = riskLevel,
             CreatedAt = c.CreatedAt
         };
     }
@@ -604,6 +611,10 @@ public class DuplicateCandidateService : IDuplicateCandidateService
                 categoryMatch)
             : new CandidateExplanationDto();
 
+        var riskAssessment = (prodA != null && prodB != null)
+            ? _riskDetectionService.AssessCandidateRisk(prodA, prodB, candidate, effectiveVisualSimilarity)
+            : new RiskAssessmentDto();
+
         return new DuplicateCandidateDetailDto
         {
             Id = candidate.Id,
@@ -627,7 +638,8 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             CreatedAt = candidate.CreatedAt,
             UpdatedAt = candidate.UpdatedAt,
             Explanation = explanation,
-            ImageSimilarity = imageSimilarity
+            ImageSimilarity = imageSimilarity,
+            RiskAssessment = riskAssessment
         };
     }
 
