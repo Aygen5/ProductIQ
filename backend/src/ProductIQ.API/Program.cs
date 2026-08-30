@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -5,6 +6,7 @@ using Microsoft.OpenApi;
 using ProductIQ.API.Middleware;
 using ProductIQ.Application;
 using ProductIQ.Application.Common.Configuration;
+using ProductIQ.Application.Common.Constants;
 using ProductIQ.Infrastructure;
 using ProductIQ.Infrastructure.Persistence;
 
@@ -36,8 +38,23 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidAudience = jwtOptions.Audience,
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
+        ClockSkew = TimeSpan.Zero,
+        RoleClaimType = ClaimTypes.Role,
+        NameClaimType = ClaimTypes.Name
     };
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthorizationConstants.Policies.AuthenticatedUser, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+    });
+
+    options.AddPolicy(AuthorizationConstants.Policies.AdminOnly, policy =>
+    {
+        policy.RequireRole(AuthorizationConstants.Roles.Admin);
+    });
 });
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
