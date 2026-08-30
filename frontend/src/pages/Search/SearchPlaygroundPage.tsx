@@ -1,289 +1,583 @@
-﻿import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { searchProducts } from "../../services/searchService";
+import type {
+  SearchMode,
+  SearchResponse,
+  QueryAnalysis,
+} from "../../types/search";
+
+const SUGGESTED_QUERIES = [
+  "Rivet brick rug",
+  "AmazonBasics glass drinkware set",
+  "Stone & Beam blooming medallion dark grey",
+  "large brick colored area rug",
+  "palm frond wall art",
+  "USB wired mouse",
+];
 
 export const SearchPlaygroundPage: React.FC = () => {
-  const [query, setQuery] = useState("black nike running shoes");
-  const [showAiPanel, setShowAiPanel] = useState(false);
+  const [query, setQuery] = useState("Rivet brick rug");
+  const [mode, setMode] = useState<SearchMode>("Hybrid");
+  const [brandFilter, setBrandFilter] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [minScore, setMinScore] = useState<number | undefined>(undefined);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
   const [viewMode, setViewMode] = useState<"details" | "json">("details");
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
+
+  const executeSearch = async (
+    targetQuery = query,
+    targetMode = mode,
+    targetPage = page,
+    targetBrand = brandFilter,
+    targetCategory = categoryFilter,
+    targetMinScore = minScore
+  ) => {
+    if (!targetQuery.trim()) {
+      setSearchResponse(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await searchProducts({
+        query: targetQuery.trim(),
+        mode: targetMode,
+        brand: targetBrand.trim() || undefined,
+        category: targetCategory.trim() || undefined,
+        minScore: targetMinScore !== undefined ? targetMinScore : undefined,
+        page: targetPage,
+        pageSize,
+      });
+      setSearchResponse(res);
+    } catch (err: any) {
+      setError(err?.message || "Search request failed. Please check backend connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    executeSearch(query, mode, page, brandFilter, categoryFilter, minScore);
+  }, [mode, page, brandFilter, categoryFilter, minScore]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    executeSearch(query, mode, 1, brandFilter, categoryFilter, minScore);
+  };
+
+  const handleSelectSuggested = (suggested: string) => {
+    setQuery(suggested);
+    setPage(1);
+    executeSearch(suggested, mode, 1, brandFilter, categoryFilter, minScore);
+  };
+
+  const handleModeChange = (newMode: SearchMode) => {
+    setMode(newMode);
+    setPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setBrandFilter("");
+    setCategoryFilter("");
+    setMinScore(undefined);
+    setPage(1);
+  };
+
+  const getRelevanceBadgeColor = (percent: number) => {
+    if (percent >= 70) return "bg-secondary/15 text-secondary border-secondary/30";
+    if (percent >= 40) return "bg-primary/15 text-primary border-primary/30";
+    return "bg-outline/15 text-outline border-outline/30";
+  };
+
+  const queryAnalysis: QueryAnalysis | null = searchResponse?.queryAnalysis || null;
+
   return (
-    <div className="flex flex-col w-full gap-xl">
-      <section className="flex flex-col gap-sm">
-        <div className="flex flex-col">
-          <h1 className="font-headline-xl text-headline-xl text-on-background">Search Playground</h1>
-          <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mt-xs">
-            Test product queries and understand why results are ranked in real-time.
-          </p>
-        </div>
-      </section>
-
-      {/* Query Section */}
-      <section className="relative bg-surface-container-low rounded-3xl p-xl shadow-lg border border-outline-variant/20 overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 transition-opacity duration-700 group-hover:opacity-100"></div>
-        <div className="relative z-10 flex flex-col gap-lg items-center">
-          <div className="w-full max-w-4xl relative">
-            <div className="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none">
-              <span className="material-symbols-outlined text-outline text-[28px]">search</span>
-            </div>
-            <input
-              className="w-full bg-surface-container h-20 pl-xl pr-md rounded-2xl font-body-lg text-body-lg text-on-surface border border-outline-variant/30 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-outline/50 shadow-inner"
-              placeholder="Test a query..."
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <div className="absolute inset-y-0 right-md flex items-center gap-sm">
-              <button className="bg-primary/10 text-primary hover:bg-primary/20 px-sm py-xs rounded-lg font-label-md text-label-md transition-colors flex items-center gap-xs">
-                <span className="material-symbols-outlined text-[16px]">tune</span> Adjust Weights
-              </button>
-              <button className="bg-primary text-on-primary px-lg py-sm rounded-xl font-label-md text-label-md shadow-md hover:shadow-lg transition-all hover:scale-[1.02] active:scale-95">
-                Run Query
-              </button>
-            </div>
+    <div className="flex flex-col w-full min-h-screen gap-xl pb-2xl">
+      <div className="flex flex-col gap-xs">
+        <div className="flex items-center gap-sm">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <span className="material-symbols-outlined text-[24px]">travel_explore</span>
           </div>
-          <div className="flex flex-wrap items-center gap-md font-body-sm text-body-sm text-outline">
-            <span>Suggested:</span>
-            <button
-              onClick={() => setQuery("wireless noise cancelling headphones")}
-              className="hover:text-primary transition-colors border border-outline-variant/30 rounded-full px-sm py-xs bg-surface-container-lowest"
-            >
-              "wireless noise cancelling headphones"
-            </button>
-            <button
-              onClick={() => setQuery("ergonomic office chair")}
-              className="hover:text-primary transition-colors border border-outline-variant/30 rounded-full px-sm py-xs bg-surface-container-lowest"
-            >
-              "ergonomic office chair"
-            </button>
-            <button
-              onClick={() => setQuery("4k gaming monitor 144hz")}
-              className="hover:text-primary transition-colors border border-outline-variant/30 rounded-full px-sm py-xs bg-surface-container-lowest"
-            >
-              "4k gaming monitor 144hz"
-            </button>
+          <div>
+            <h1 className="font-headline-xl text-headline-xl text-on-background font-bold">Search Playground</h1>
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              Evaluate real-time lexical keyword matching, pgvector semantic similarity, and hybrid ranking on the ABO catalog.
+            </p>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
-        {/* Left column (3 cols) */}
-        <div className="lg:col-span-3 flex flex-col gap-md">
-          <div className="bg-surface-container-lowest rounded-2xl p-md border border-outline-variant/10 shadow-sm sticky top-[100px]">
-            <div className="flex items-center justify-between mb-sm">
-              <h3 className="font-label-md text-label-md text-on-surface uppercase tracking-wider text-outline">Ranking Controls</h3>
-              <span className="material-symbols-outlined text-outline text-[18px]">sort</span>
-            </div>
-            <div className="flex flex-col gap-lg mt-md">
-              <div className="flex flex-col gap-xs">
-                <div className="flex justify-between font-label-sm text-label-sm">
-                  <span className="text-on-surface">Relevance Weight</span>
-                  <span className="text-primary">High (2x)</span>
-                </div>
-                <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden relative">
-                  <div className="absolute left-0 top-0 h-full bg-primary w-[80%] rounded-full shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-xs">
-                <div className="flex justify-between font-label-sm text-label-sm">
-                  <span className="text-on-surface">Popularity (CTR)</span>
-                  <span className="text-outline">Normal (1x)</span>
-                </div>
-                <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden relative">
-                  <div className="absolute left-0 top-0 h-full bg-outline w-[50%] rounded-full"></div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-xs">
-                <div className="flex justify-between font-label-sm text-label-sm">
-                  <span className="text-on-surface">Rating Boost</span>
-                  <span className="text-outline">Low (0.5x)</span>
-                </div>
-                <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden relative">
-                  <div className="absolute left-0 top-0 h-full bg-outline w-[25%] rounded-full"></div>
-                </div>
-              </div>
+      <section className="relative bg-surface-container rounded-[28px] p-xl border border-outline-variant/10 shadow-sm overflow-hidden">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-md relative z-10">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-sm">
+            <div className="relative flex-1">
+              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-[24px]">search</span>
+              <input
+                type="text"
+                placeholder="Search catalog by title, brand, category, or natural description..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high border border-outline-variant/20 rounded-2xl font-body-lg text-body-lg text-on-surface focus:outline-none focus:border-primary shadow-inner"
+              />
             </div>
 
-            <div className="mt-xl pt-md border-t border-outline-variant/10">
-              <div className="flex items-center gap-sm mb-sm text-outline">
-                <span className="material-symbols-outlined text-[16px]">info</span>
-                <span className="font-label-sm text-label-sm uppercase tracking-widest">Query Intent</span>
-              </div>
-              <div className="flex flex-wrap gap-xs">
-                <span className="px-xs py-[2px] bg-secondary-container/20 text-secondary border border-secondary/30 rounded font-label-sm text-[10px] uppercase">
-                  Category: Footwear
-                </span>
-                <span className="px-xs py-[2px] bg-tertiary-container/20 text-tertiary border border-tertiary/30 rounded font-label-sm text-[10px] uppercase">
-                  Brand: Nike
-                </span>
-                <span className="px-xs py-[2px] bg-surface-container-high text-on-surface-variant border border-outline-variant/30 rounded font-label-sm text-[10px] uppercase">
-                  Color: Black
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right column (9 cols) */}
-        <div className="lg:col-span-9 flex flex-col gap-md">
-          <div className="flex items-center justify-between px-xs mb-xs">
-            <span className="font-body-sm text-body-sm text-outline">
-              Showing top results for <strong className="text-on-surface font-semibold">"{query}"</strong> (45ms)
-            </span>
-            <div className="flex items-center gap-sm font-label-sm text-label-sm text-outline">
-              <span>View:</span>
-              <button
-                onClick={() => setViewMode("details")}
-                className={`px-sm py-xs rounded flex items-center gap-xs transition-colors ${
-                  viewMode === "details" ? "text-primary bg-primary/10 font-medium" : "hover:bg-surface-container"
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">view_list</span> Details
-              </button>
-              <button
-                onClick={() => setViewMode("json")}
-                className={`px-sm py-xs rounded flex items-center gap-xs transition-colors ${
-                  viewMode === "json" ? "text-primary bg-primary/10 font-medium" : "hover:bg-surface-container"
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">data_object</span> JSON
-              </button>
-            </div>
-          </div>
-
-          {viewMode === "json" ? (
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-md font-mono text-body-sm text-on-surface-variant overflow-x-auto">
-              <pre>{JSON.stringify(
-                {
-                  query,
-                  executionTimeMs: 45,
-                  totalResults: 1,
-                  results: [
-                    {
-                      rank: 1,
-                      product: "Nike Air Zoom Pegasus 40",
-                      matchScore: 0.98,
-                      textRelevance: 0.99,
-                      semanticMatch: 0.95,
-                      popularity: "High",
-                      signals: ["Brand: Nike", "Category: Footwear", "Color: Black"]
-                    }
-                  ]
-                },
-                null,
-                2
-              )}</pre>
-            </div>
-          ) : (
-            <div className="bg-surface-container-lowest rounded-2xl border border-primary/30 p-md shadow-[0_8px_32px_rgba(79,70,229,0.05)] relative overflow-hidden group">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
-              <div className="flex items-start gap-lg">
-                {/* Rank badge */}
-                <div className="w-16 h-16 rounded-xl bg-surface-container-high flex flex-col items-center justify-center border border-outline-variant/20 flex-shrink-0 shadow-sm relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-t from-primary/10 to-transparent"></div>
-                  <span className="font-headline-md text-headline-md text-primary font-bold">#1</span>
-                  <span className="font-label-sm text-[10px] text-outline uppercase">Rank</span>
-                </div>
-
-                {/* Product image */}
-                <div className="w-24 h-24 rounded-lg bg-surface-container border border-outline-variant/10 flex-shrink-0 overflow-hidden relative">
-                  <img
-                    className="w-full h-full object-cover"
-                    alt="Nike Air Zoom Pegasus 40"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0JnvFO2jv1dDdQ6Zf5YWIdbbIo7-kjXTeBstrc1DjP7u5vatK2vXH5_orclKgpxXf60BBWmjPXu9Rro2aGlXrPgpU4F3PLVM3__5fMDsemtm-UK5jEN0wt2RUK-vSNJZcQJZN0JZPKnMXCIqHSiTMbttvHncnXI-P1DTcFV288GGW2eba8q7EiZdkgtmSyUR8FQ7UIvY2NxFlzINyHGtG37y-EU6TyK0cfobdmC1dpNkqGtKHdOM6"
-                  />
-                  <div className="absolute bottom-xs right-xs bg-secondary-container/90 backdrop-blur text-secondary px-xs py-[2px] rounded font-label-sm text-[9px] flex items-center gap-[2px]">
-                    <span className="material-symbols-outlined text-[10px]">check_circle</span> In Stock
-                  </div>
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 flex flex-col min-w-0">
-                  <div className="flex justify-between items-start">
-                    <div className="flex flex-col min-w-0 pr-md">
-                      <h4 className="font-headline-md text-headline-md text-on-surface truncate">Nike Air Zoom Pegasus 40</h4>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant truncate mt-xs">
-                        Men's Road Running Shoes - Black/Anthracite
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end flex-shrink-0">
-                      <div className="flex items-center gap-xs">
-                        <span className="material-symbols-outlined text-secondary text-[18px]">verified</span>
-                        <span className="font-headline-lg text-headline-lg text-secondary">
-                          98<span className="text-body-sm text-outline">%</span>
-                        </span>
-                      </div>
-                      <span className="font-label-sm text-label-sm text-outline uppercase">Match Score</span>
-                    </div>
-                  </div>
-
-                  {/* Progress bars */}
-                  <div className="mt-md flex items-center gap-md w-full">
-                    <div className="flex-1 flex flex-col gap-xs">
-                      <div className="flex justify-between font-label-sm text-[10px] text-outline uppercase">
-                        <span>Text Relevance</span>
-                        <span className="text-on-surface font-semibold">99%</span>
-                      </div>
-                      <div className="w-full h-[4px] bg-surface-container-high rounded-full overflow-hidden">
-                        <div className="h-full bg-primary w-[99%]"></div>
-                      </div>
-                    </div>
-                    <div className="flex-1 flex flex-col gap-xs">
-                      <div className="flex justify-between font-label-sm text-[10px] text-outline uppercase">
-                        <span>Semantic Match</span>
-                        <span className="text-on-surface font-semibold">95%</span>
-                      </div>
-                      <div className="w-full h-[4px] bg-surface-container-high rounded-full overflow-hidden">
-                        <div className="h-full bg-secondary w-[95%]"></div>
-                      </div>
-                    </div>
-                    <div className="flex-1 flex flex-col gap-xs">
-                      <div className="flex justify-between font-label-sm text-[10px] text-outline uppercase">
-                        <span>Popularity</span>
-                        <span className="text-on-surface font-semibold">High</span>
-                      </div>
-                      <div className="w-full h-[4px] bg-surface-container-high rounded-full overflow-hidden">
-                        <div className="h-full bg-tertiary w-[85%]"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* AI Explanation trigger */}
+            <div className="flex items-center bg-surface-container-high p-1 rounded-2xl border border-outline-variant/10 self-center lg:self-auto shrink-0">
+              {(["Hybrid", "Keyword", "Semantic"] as SearchMode[]).map((m) => (
                 <button
-                  onClick={() => setShowAiPanel(!showAiPanel)}
-                  className="h-full px-sm flex flex-col items-center justify-center text-primary/70 hover:text-primary transition-colors hover:bg-primary/5 rounded-xl border border-transparent hover:border-primary/20"
+                  key={m}
+                  type="button"
+                  onClick={() => handleModeChange(m)}
+                  className={`px-md py-2 rounded-xl font-label-md text-label-md font-bold transition-all ${
+                    mode === m
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/40"
+                  }`}
                 >
-                  <span className="material-symbols-outlined mb-xs text-[24px]">auto_awesome</span>
-                  <span className="font-label-sm text-[10px] uppercase text-center w-16">
-                    Why this<br />result?
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-xl py-3.5 bg-primary text-on-primary rounded-2xl font-label-lg text-label-lg font-bold shadow-md hover:bg-primary/90 transition-all flex items-center justify-center gap-xs disabled:opacity-60"
+            >
+              {loading ? (
+                <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-[20px]">bolt</span>
+              )}
+              <span>Execute</span>
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-xs pt-xs">
+            <span className="font-label-sm text-label-sm text-outline font-medium mr-xs">Sample ABO Queries:</span>
+            {SUGGESTED_QUERIES.map((sq, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSelectSuggested(sq)}
+                className="px-sm py-1 rounded-lg bg-surface-container-high/80 border border-outline-variant/10 text-on-surface-variant font-label-sm text-label-sm hover:text-primary hover:border-primary/40 hover:bg-surface-container-highest transition-all"
+              >
+                "{sq}"
+              </button>
+            ))}
+          </div>
+        </form>
+      </section>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-xl items-start">
+        <div className="xl:col-span-4 flex flex-col gap-lg">
+          <div className="bg-surface-container rounded-[24px] p-lg border border-outline-variant/10 shadow-sm flex flex-col gap-md">
+            <div className="flex items-center justify-between pb-sm border-b border-outline-variant/10">
+              <div className="flex items-center gap-xs text-primary font-bold">
+                <span className="material-symbols-outlined text-[20px]">psychology</span>
+                <h3 className="font-title-md text-title-md text-on-background">Query Intelligence</h3>
+              </div>
+              <span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-mono bg-surface-container-high px-sm py-0.5 rounded-md">
+                Deterministic
+              </span>
+            </div>
+
+            {queryAnalysis ? (
+              <div className="flex flex-col gap-md">
+                <div className="flex flex-col gap-xs">
+                  <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Search Intent</span>
+                  <div className="inline-flex items-center gap-xs px-sm py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-label-md text-label-md font-bold self-start">
+                    <span className="material-symbols-outlined text-[16px]">target</span>
+                    {queryAnalysis.searchIntent}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-sm">
+                  <div className="p-sm rounded-xl bg-surface-container-high border border-outline-variant/10 flex flex-col gap-0.5">
+                    <span className="text-[11px] text-outline font-medium">Detected Brand</span>
+                    <span className="font-label-md text-label-md text-on-surface font-bold truncate">
+                      {queryAnalysis.detectedBrand || "None"}
+                    </span>
+                  </div>
+
+                  <div className="p-sm rounded-xl bg-surface-container-high border border-outline-variant/10 flex flex-col gap-0.5">
+                    <span className="text-[11px] text-outline font-medium">Detected Category</span>
+                    <span className="font-label-md text-label-md text-on-surface font-bold truncate">
+                      {queryAnalysis.detectedCategory || "None"}
+                    </span>
+                  </div>
+                </div>
+
+                {queryAnalysis.detectedModel && (
+                  <div className="p-sm rounded-xl bg-surface-container-high border border-outline-variant/10 flex flex-col gap-0.5">
+                    <span className="text-[11px] text-outline font-medium">Detected ASIN / Model</span>
+                    <span className="font-mono text-label-md text-secondary font-bold">
+                      {queryAnalysis.detectedModel}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-xs">
+                  <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Extracted Keywords</span>
+                  <div className="flex flex-wrap gap-xs">
+                    {queryAnalysis.keyTerms.map((term, idx) => (
+                      <span
+                        key={idx}
+                        className="px-sm py-0.5 rounded-md bg-surface-container-highest border border-outline-variant/10 text-on-surface font-mono text-[12px]"
+                      >
+                        {term}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-on-surface-variant pt-xs border-t border-outline-variant/10">
+                  <span>Visual Adjectives Detected:</span>
+                  <span className="font-bold text-on-surface">
+                    {queryAnalysis.hasVisualAdjectives ? "Yes (Color / Texture)" : "No"}
                   </span>
+                </div>
+              </div>
+            ) : (
+              <div className="py-md text-center text-on-surface-variant font-body-sm text-body-sm">
+                Run a search query to inspect automatic query normalization and token extraction.
+              </div>
+            )}
+          </div>
+
+          <div className="bg-surface-container rounded-[24px] p-lg border border-outline-variant/10 shadow-sm flex flex-col gap-md">
+            <div className="flex items-center justify-between pb-sm border-b border-outline-variant/10">
+              <div className="flex items-center gap-xs font-bold text-on-surface">
+                <span className="material-symbols-outlined text-[20px] text-outline">tune</span>
+                <h3 className="font-title-md text-title-md">Search Filters</h3>
+              </div>
+              {(brandFilter || categoryFilter || minScore !== undefined) && (
+                <button
+                  onClick={handleResetFilters}
+                  className="font-label-sm text-label-sm text-primary hover:underline font-bold"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-sm">
+              <div className="flex flex-col gap-xs">
+                <label className="font-label-sm text-label-sm text-outline">Brand Filter</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rivet, AmazonBasics"
+                  value={brandFilter}
+                  onChange={(e) => {
+                    setBrandFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-sm py-1.5 bg-surface-container-high border border-outline-variant/10 rounded-xl font-body-sm text-body-sm text-on-surface focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex flex-col gap-xs">
+                <label className="font-label-sm text-label-sm text-outline">Category Filter</label>
+                <input
+                  type="text"
+                  placeholder="e.g. RUG, PILLOW"
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-sm py-1.5 bg-surface-container-high border border-outline-variant/10 rounded-xl font-body-sm text-body-sm text-on-surface focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex flex-col gap-xs">
+                <label className="font-label-sm text-label-sm text-outline">
+                  Min Relevance Threshold ({minScore !== undefined ? `${(minScore * 100).toFixed(0)}%` : "None"})
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={minScore ?? 0}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setMinScore(val > 0 ? val : undefined);
+                    setPage(1);
+                  }}
+                  className="w-full accent-primary"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-md rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 flex flex-col gap-xs text-[12px] text-on-surface-variant leading-relaxed">
+            <div className="flex items-center gap-xs font-bold text-on-surface">
+              <span className="material-symbols-outlined text-[16px] text-primary">info</span>
+              Mental Model Distinction
+            </div>
+            <div>
+              <strong className="text-on-background">Relevance Score:</strong> Measures how closely a catalog listing satisfies the user's search query.
+            </div>
+            <div>
+              <strong className="text-on-background">Duplicate Score:</strong> Measures similarity between two existing catalog items.
+            </div>
+          </div>
+        </div>
+
+        <div className="xl:col-span-8 flex flex-col gap-md">
+          <div className="flex flex-wrap items-center justify-between gap-sm p-sm px-md bg-surface-container rounded-2xl border border-outline-variant/10">
+            <div className="flex items-center gap-sm">
+              <span className="font-body-md text-body-md text-on-surface">
+                {searchResponse ? (
+                  <>
+                    Showing <strong className="text-primary font-bold">{searchResponse.results.length}</strong> of{" "}
+                    <strong className="font-bold">{searchResponse.totalCount}</strong> ranked results
+                  </>
+                ) : (
+                  "Ready to search"
+                )}
+              </span>
+              {searchResponse && (
+                <span className="font-mono text-[11px] text-on-surface-variant bg-surface-container-high px-sm py-0.5 rounded-md">
+                  {searchResponse.executionTimeMs}ms latency
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-sm">
+              <div className="flex items-center bg-surface-container-high p-0.5 rounded-xl border border-outline-variant/10 text-[12px]">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("details")}
+                  className={`px-sm py-1 rounded-lg font-label-sm text-label-sm font-semibold transition-colors flex items-center gap-xs ${
+                    viewMode === "details" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[14px]">view_list</span> Ranked List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("json")}
+                  className={`px-sm py-1 rounded-lg font-label-sm text-label-sm font-semibold transition-colors flex items-center gap-xs ${
+                    viewMode === "json" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[14px]">data_object</span> Raw JSON
                 </button>
               </div>
+            </div>
+          </div>
 
-              {/* Collapsible AI Explanation */}
-              {showAiPanel && (
-                <div className="mt-md pt-md border-t border-outline-variant/20 bg-surface-container/50 rounded-xl p-md">
-                  <div className="flex items-start gap-sm">
-                    <span className="material-symbols-outlined text-primary text-[20px] mt-[2px]">psychology</span>
-                    <div className="flex flex-col gap-sm flex-1">
-                      <p className="font-label-md text-label-md text-on-surface">AI Explanation</p>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant">
-                        This product ranked #1 because it perfectly matches the exact brand ("Nike") and category ("running shoes") while
-                        possessing an overwhelmingly high semantic similarity for "black" via the color variant "Black/Anthracite". It also
-                        receives a +15% boost from recent high CTR on this specific query.
-                      </p>
-                      <div className="flex flex-wrap gap-sm mt-xs">
-                        <span className="inline-flex items-center gap-xs px-xs py-[2px] bg-surface-container-high rounded border border-outline-variant/30 font-label-sm text-[10px] text-outline">
-                          <span className="material-symbols-outlined text-[12px] text-secondary">check</span> Exact Match: Brand
-                        </span>
-                        <span className="inline-flex items-center gap-xs px-xs py-[2px] bg-surface-container-high rounded border border-outline-variant/30 font-label-sm text-[10px] text-outline">
-                          <span className="material-symbols-outlined text-[12px] text-secondary">check</span> Exact Match: Category
-                        </span>
-                        <span className="inline-flex items-center gap-xs px-xs py-[2px] bg-surface-container-high rounded border border-outline-variant/30 font-label-sm text-[10px] text-outline">
-                          <span className="material-symbols-outlined text-[12px] text-tertiary">trending_up</span> Boost: Popularity
+          {loading ? (
+            <div className="flex flex-col gap-md">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="p-lg rounded-[24px] bg-surface-container border border-outline-variant/10 animate-pulse flex flex-col gap-md"
+                >
+                  <div className="flex items-start gap-md">
+                    <div className="w-14 h-14 rounded-xl bg-surface-container-high" />
+                    <div className="w-20 h-20 rounded-xl bg-surface-container-high shrink-0" />
+                    <div className="flex-1 flex flex-col gap-sm">
+                      <div className="w-3/4 h-5 bg-surface-container-high rounded" />
+                      <div className="w-1/2 h-4 bg-surface-container-high rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="p-xl rounded-[24px] bg-error/10 border border-error/20 text-error flex flex-col gap-sm items-start">
+              <div className="flex items-center gap-xs font-bold text-headline-sm">
+                <span className="material-symbols-outlined text-[24px]">error</span>
+                Search Execution Failed
+              </div>
+              <p className="text-body-md text-on-surface">{error}</p>
+              <button
+                onClick={() => executeSearch()}
+                className="mt-xs px-md py-1.5 bg-error text-on-error rounded-xl font-label-md text-label-md font-bold"
+              >
+                Retry Search
+              </button>
+            </div>
+          ) : !searchResponse || searchResponse.results.length === 0 ? (
+            <div className="p-2xl rounded-[24px] bg-surface-container border border-outline-variant/10 text-center flex flex-col items-center gap-md text-on-surface-variant min-h-[350px] justify-center">
+              <span className="material-symbols-outlined text-[48px] text-outline">search_off</span>
+              <h3 className="font-headline-sm text-headline-sm text-on-background font-bold">No Products Matched Query</h3>
+              <p className="font-body-md text-body-md max-w-md">
+                Try switching search modes to <strong>Hybrid</strong> or <strong>Semantic</strong>, or test one of the sample ABO queries above.
+              </p>
+            </div>
+          ) : viewMode === "json" ? (
+            <div className="bg-surface-container rounded-[24px] border border-outline-variant/10 p-lg font-mono text-[12px] text-on-surface-variant overflow-x-auto max-h-[750px]">
+              <pre>{JSON.stringify(searchResponse, null, 2)}</pre>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-md">
+              {searchResponse.results.map((r, idx) => {
+                const rankNumber = (page - 1) * pageSize + idx + 1;
+                const isTopResult = rankNumber === 1;
+
+                return (
+                  <div
+                    key={r.productId}
+                    className={`p-lg rounded-[24px] bg-surface-container border transition-all flex flex-col gap-md relative overflow-hidden ${
+                      isTopResult
+                        ? "border-primary/40 shadow-md bg-gradient-to-r from-primary/5 via-surface-container to-surface-container"
+                        : "border-outline-variant/10 hover:border-outline-variant/40"
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row items-start gap-md">
+                      <div className="flex items-center gap-md shrink-0">
+                        <div
+                          className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-bold font-headline-sm shadow-sm ${
+                            rankNumber === 1
+                              ? "bg-primary text-on-primary"
+                              : rankNumber <= 3
+                              ? "bg-primary/15 text-primary border border-primary/30"
+                              : "bg-surface-container-high text-on-surface-variant border border-outline-variant/10"
+                          }`}
+                        >
+                          #{rankNumber}
+                        </div>
+
+                        <img
+                          src={r.mainImageUrl || "https://images-na.ssl-images-amazon.com/images/I/01RmK%2BJNmNL.png"}
+                          alt={r.name}
+                          className="w-20 h-20 rounded-xl object-cover border border-outline-variant/10 bg-surface-container-highest shrink-0 shadow-sm"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://images-na.ssl-images-amazon.com/images/I/01RmK%2BJNmNL.png";
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex-1 flex flex-col min-w-0 gap-xs">
+                        <div className="flex flex-wrap items-center gap-xs">
+                          <span className="font-mono text-[11px] font-bold text-outline px-sm py-0.5 bg-surface-container-high rounded-md">
+                            {r.amazonItemId}
+                          </span>
+                          {r.brand && (
+                            <span className="font-label-sm text-[11px] font-bold text-primary px-sm py-0.5 bg-primary/10 rounded-md">
+                              {r.brand}
+                            </span>
+                          )}
+                          {r.category && (
+                            <span className="font-label-sm text-[11px] font-medium text-on-surface-variant px-sm py-0.5 bg-surface-container-high rounded-md">
+                              {r.category}
+                            </span>
+                          )}
+                          {r.price && (
+                            <span className="font-mono text-[11px] font-bold text-secondary px-sm py-0.5 bg-secondary/10 rounded-md ml-auto">
+                              ${r.price.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="font-title-md text-title-md text-on-surface font-bold leading-snug line-clamp-2">
+                          {r.name}
+                        </h3>
+
+                        {r.modelNumber && (
+                          <div className="text-[11px] text-on-surface-variant font-mono">
+                            Model: <strong className="text-on-surface">{r.modelNumber}</strong>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col items-end shrink-0 sm:ml-auto">
+                        <div
+                          className={`px-md py-1.5 rounded-xl font-headline-md text-headline-md font-extrabold border ${getRelevanceBadgeColor(
+                            r.relevancePercent
+                          )}`}
+                        >
+                          {r.relevancePercent}%
+                        </div>
+                        <span className="font-label-sm text-[10px] text-outline uppercase tracking-wider mt-0.5">
+                          Relevance Score
                         </span>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-md p-sm px-md rounded-xl bg-surface-container-low border border-outline-variant/10">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between font-label-sm text-[11px] text-on-surface-variant">
+                          <span>Keyword Match (Lexical)</span>
+                          <span className="font-bold text-on-surface">{(r.keywordScore * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${Math.max(3, r.keywordScore * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between font-label-sm text-[11px] text-on-surface-variant">
+                          <span>Semantic Match (pgvector)</span>
+                          <span className="font-bold text-on-surface">{(r.semanticScore * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-secondary rounded-full transition-all"
+                            style={{ width: `${Math.max(3, r.semanticScore * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-sm pt-xs border-t border-outline-variant/10">
+                      <div className="flex items-center gap-xs font-body-sm text-[12px] text-on-surface-variant">
+                        <span className="material-symbols-outlined text-[16px] text-primary">info</span>
+                        <span>{r.explanation}</span>
+                      </div>
+
+                      {r.matchedFields && r.matchedFields.length > 0 && (
+                        <div className="flex items-center gap-xs">
+                          <span className="text-[10px] text-outline uppercase font-semibold">Matched:</span>
+                          {r.matchedFields.map((f, i) => (
+                            <span
+                              key={i}
+                              className="px-xs py-0.5 bg-surface-container-high text-on-surface font-label-sm text-[10px] rounded border border-outline-variant/10 font-medium"
+                            >
+                              {f}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {searchResponse.totalCount > pageSize && (
+                <div className="flex items-center justify-between pt-md border-t border-outline-variant/10 font-label-sm text-label-sm text-on-surface-variant">
+                  <span>
+                    Page {searchResponse.page} of {Math.ceil(searchResponse.totalCount / pageSize)}
+                  </span>
+                  <div className="flex items-center gap-xs">
+                    <button
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className="px-md py-1.5 rounded-xl bg-surface-container border border-outline-variant/10 text-on-surface hover:bg-surface-variant disabled:opacity-40 disabled:cursor-not-allowed font-bold"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      disabled={page * pageSize >= searchResponse.totalCount}
+                      onClick={() => setPage((p) => p + 1)}
+                      className="px-md py-1.5 rounded-xl bg-surface-container border border-outline-variant/10 text-on-surface hover:bg-surface-variant disabled:opacity-40 disabled:cursor-not-allowed font-bold"
+                    >
+                      Next
+                    </button>
                   </div>
                 </div>
               )}
