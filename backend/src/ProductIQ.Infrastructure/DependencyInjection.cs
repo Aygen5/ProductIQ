@@ -30,6 +30,9 @@ public static class DependencyInjection
         services.Configure<EmbeddingOptions>(configuration.GetSection(EmbeddingOptions.SectionName));
         services.Configure<ClipOptions>(configuration.GetSection(ClipOptions.SectionName));
         services.Configure<OpenAiExplanationOptions>(configuration.GetSection(OpenAiExplanationOptions.SectionName));
+        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+
+        services.AddHttpContextAccessor();
 
         services.AddHttpClient<IEmbeddingService, OpenAiEmbeddingService>(client =>
         {
@@ -51,6 +54,9 @@ public static class DependencyInjection
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<UserSeeder>();
 
         return services;
