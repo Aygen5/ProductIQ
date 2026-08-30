@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<ISimilaritySearchService, SimilaritySearchService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<ISettingsService, SettingsService>();
 
         return services;
     }
