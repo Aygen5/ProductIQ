@@ -19,6 +19,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
     private readonly IImageSimilarityService _imageSimilarityService;
     private readonly IExplanationLlmService _llmService;
     private readonly IRiskDetectionService _riskDetectionService;
+    private readonly ISettingsService? _settingsService;
     private readonly CandidateDetectionOptions _options;
     private readonly ILogger<DuplicateCandidateService> _logger;
 
@@ -29,7 +30,8 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         IExplanationLlmService llmService,
         IRiskDetectionService riskDetectionService,
         IOptions<CandidateDetectionOptions> options,
-        ILogger<DuplicateCandidateService> logger)
+        ILogger<DuplicateCandidateService> logger,
+        ISettingsService? settingsService = null)
     {
         _context = context;
         _explanationService = explanationService;
@@ -38,6 +40,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         _riskDetectionService = riskDetectionService;
         _options = options.Value;
         _logger = logger;
+        _settingsService = settingsService;
     }
 
     public async Task<CandidateDetectionResultDto> RunCandidateDetectionAsync(CancellationToken cancellationToken = default)
@@ -397,7 +400,14 @@ public class DuplicateCandidateService : IDuplicateCandidateService
             }
         }
 
-        if (aiExplanation == null || string.IsNullOrWhiteSpace(aiExplanation.Summary))
+        var aiEnabled = true;
+        if (_settingsService != null)
+        {
+            var aiSettings = await _settingsService.GetAiSettingsAsync(cancellationToken);
+            aiEnabled = aiSettings.EnableAiExplanations;
+        }
+
+        if (aiEnabled && (aiExplanation == null || string.IsNullOrWhiteSpace(aiExplanation.Summary)))
         {
             var promptContext = BuildPromptContext(detailDto);
             aiExplanation = await _llmService.GenerateExplanationAsync(promptContext, cancellationToken);
@@ -416,7 +426,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         detailDto.AiExplanationDetails = aiExplanation;
         detailDto.AiExplanation = aiExplanation?.Summary ?? detailDto.Explanation.Summary;
 
-        if (detailDto.RiskAssessment != null)
+        if (aiEnabled && detailDto.RiskAssessment != null)
         {
             var riskPromptContext = new RiskPromptContextDto
             {

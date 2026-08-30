@@ -12,6 +12,13 @@ using ProductIQ.Domain.Enums;
 
 public class RiskDetectionService : IRiskDetectionService
 {
+    private readonly ISettingsService? _settingsService;
+
+    public RiskDetectionService(ISettingsService? settingsService = null)
+    {
+        _settingsService = settingsService;
+    }
+
     public RiskAssessmentDto AssessCandidateRisk(Product productA, Product productB, DuplicateCandidate candidate, decimal? visualSimilarity = null)
     {
         var signals = new List<RiskSignalDto>();
@@ -205,11 +212,25 @@ public class RiskDetectionService : IRiskDetectionService
         var rawScore = signals.Sum(s => s.ScoreContribution);
         var finalScore = Math.Clamp(rawScore, 0, 100);
 
+        var criticalThresh = 75;
+        var highThresh = 50;
+        var mediumThresh = 25;
+        var immediateReviewThresh = 50;
+
+        if (_settingsService != null)
+        {
+            var riskSettings = _settingsService.GetRiskSettingsAsync().GetAwaiter().GetResult();
+            criticalThresh = riskSettings.CriticalThreshold;
+            highThresh = riskSettings.HighThreshold;
+            mediumThresh = riskSettings.MediumThreshold;
+            immediateReviewThresh = riskSettings.ImmediateReviewThreshold;
+        }
+
         var riskLevel = finalScore switch
         {
-            >= 75 => nameof(RiskLevel.Critical),
-            >= 50 => nameof(RiskLevel.High),
-            >= 25 => nameof(RiskLevel.Medium),
+            var s when s >= criticalThresh => nameof(RiskLevel.Critical),
+            var s when s >= highThresh => nameof(RiskLevel.High),
+            var s when s >= mediumThresh => nameof(RiskLevel.Medium),
             _ => nameof(RiskLevel.Low)
         };
 
@@ -239,7 +260,7 @@ public class RiskDetectionService : IRiskDetectionService
             RiskSignals = signals,
             ConflictingSignalsCount = conflictingCount,
             DataQualityIssuesCount = dataQualityCount,
-            RequiresImmediateReview = finalScore >= 50
+            RequiresImmediateReview = finalScore >= immediateReviewThresh
         };
     }
 
@@ -377,11 +398,24 @@ public class RiskDetectionService : IRiskDetectionService
         }
 
         var finalScore = Math.Clamp(rawScore, 0, 100);
+
+        var criticalThresh = 75;
+        var highThresh = 50;
+        var mediumThresh = 25;
+
+        if (_settingsService != null)
+        {
+            var riskSettings = _settingsService.GetRiskSettingsAsync().GetAwaiter().GetResult();
+            criticalThresh = riskSettings.CriticalThreshold;
+            highThresh = riskSettings.HighThreshold;
+            mediumThresh = riskSettings.MediumThreshold;
+        }
+
         var level = finalScore switch
         {
-            >= 75 => nameof(RiskLevel.Critical),
-            >= 50 => nameof(RiskLevel.High),
-            >= 25 => nameof(RiskLevel.Medium),
+            var s when s >= criticalThresh => nameof(RiskLevel.Critical),
+            var s when s >= highThresh => nameof(RiskLevel.High),
+            var s when s >= mediumThresh => nameof(RiskLevel.Medium),
             _ => nameof(RiskLevel.Low)
         };
 
