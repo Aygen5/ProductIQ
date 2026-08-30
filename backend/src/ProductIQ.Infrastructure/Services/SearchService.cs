@@ -287,6 +287,24 @@ public class SearchService : ISearchService
 
         stopwatch.Stop();
 
+        try
+        {
+            var avgRel = sorted.Count > 0 ? (decimal?)Math.Round((decimal)sorted.Average(r => r.RelevanceScore), 4) : null;
+            _context.SearchQueryLogs.Add(new SearchQueryLog
+            {
+                QueryText = request.Query,
+                ExecutionTimeMs = (int)stopwatch.ElapsedMilliseconds,
+                TotalResults = totalCount,
+                AvgRelevanceScore = avgRel,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to log search query analytics for '{Query}'", request.Query);
+        }
+
         return new SearchResponseDto
         {
             Query = request.Query,
