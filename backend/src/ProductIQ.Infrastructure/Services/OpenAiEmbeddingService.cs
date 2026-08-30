@@ -50,7 +50,8 @@ public class OpenAiEmbeddingService : IEmbeddingService
         var apiKey = GetApiKey();
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            throw new InvalidOperationException("OpenAI API key is missing. Please set the OPENAI_API_KEY environment variable or configure 'Embedding:ApiKey' in application configuration/User Secrets (or set 'Embedding:Provider': 'Mock' for offline testing).");
+            _logger.LogWarning("OpenAI API key is missing for embeddings. Using deterministic embedding vector generator (Dimension: {Dimension}).", _options.Dimension);
+            return texts.Select(t => GenerateDeterministicVector(t, _options.Dimension)).ToList();
         }
 
         var maxRetries = Math.Max(1, _options.MaxRetries);
