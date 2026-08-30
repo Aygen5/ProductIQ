@@ -5,6 +5,7 @@ using ProductIQ.Application.Common.Configuration;
 using ProductIQ.Application.Interfaces;
 using ProductIQ.Infrastructure.Persistence;
 using ProductIQ.Infrastructure.Services;
+using ProductIQ.Infrastructure.Services.Auth;
 
 namespace ProductIQ.Infrastructure;
 
@@ -49,6 +50,8 @@ public static class DependencyInjection
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<ISettingsService, SettingsService>();
+        services.AddScoped<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<UserSeeder>();
 
         return services;
     }

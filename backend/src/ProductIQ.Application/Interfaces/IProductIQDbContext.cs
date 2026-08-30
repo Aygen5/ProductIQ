@@ -14,5 +14,6 @@ public interface IProductIQDbContext
     DbSet<SearchQueryLog> SearchQueryLogs { get; }
     DbSet<ProductEmbedding> ProductEmbeddings { get; }
     DbSet<ProductImageEmbedding> ProductImageEmbeddings { get; }
+    DbSet<User> Users { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
