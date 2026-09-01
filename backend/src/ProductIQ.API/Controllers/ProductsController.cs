@@ -1,18 +1,25 @@
-﻿using Microsoft.AspNetCore.Mvc;
+namespace ProductIQ.API.Controllers;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using ProductIQ.Application.Common.Models;
 using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
 
-namespace ProductIQ.API.Controllers;
-
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class ProductsController(IProductService productService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResponse<ProductSummaryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<PagedResponse<ProductSummaryDto>>> GetProducts(
         [FromQuery] ProductQueryParameters parameters,
@@ -46,6 +53,7 @@ public class ProductsController(IProductService productService) : ControllerBase
 
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(ProductDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<ProductDetailDto>> GetProductById(

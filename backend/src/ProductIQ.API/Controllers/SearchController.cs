@@ -1,5 +1,9 @@
 namespace ProductIQ.API.Controllers;
 
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
@@ -8,11 +12,13 @@ using ProductIQ.Domain.Enums;
 [ApiController]
 [Route("api/search")]
 [Produces("application/json")]
+[Authorize]
 public class SearchController(ISearchService searchService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(SearchResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<SearchResponseDto>> Search(
         [FromQuery] string? q,
@@ -64,6 +70,7 @@ public class SearchController(ISearchService searchService) : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(SearchResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<SearchResponseDto>> SearchPost(
         [FromBody] SearchRequestDto request,
@@ -85,6 +92,7 @@ public class SearchController(ISearchService searchService) : ControllerBase
 
     [HttpGet("analyze")]
     [ProducesResponseType(typeof(QueryAnalysisDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public ActionResult<QueryAnalysisDto> AnalyzeQuery([FromQuery] string? q)
     {
         var analysis = searchService.AnalyzeQuery(q ?? string.Empty);

@@ -1,6 +1,13 @@
 namespace ProductIQ.API.Controllers;
 
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ProductIQ.Application.Common.Constants;
 using ProductIQ.Application.Common.Models;
 using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
@@ -9,11 +16,13 @@ using ProductIQ.Domain.Enums;
 [ApiController]
 [Route("api/duplicate-candidates")]
 [Produces("application/json")]
+[Authorize]
 public class DuplicateCandidatesController(IDuplicateCandidateService duplicateCandidateService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResponse<DuplicateCandidateSummaryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<PagedResponse<DuplicateCandidateSummaryDto>>> GetDuplicateCandidates(
         [FromQuery] DuplicateCandidateQueryParameters parameters,
@@ -47,6 +56,7 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
 
     [HttpGet("summary")]
     [ProducesResponseType(typeof(DuplicateCandidatesSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<DuplicateCandidatesSummaryDto>> GetSummary(CancellationToken cancellationToken)
     {
@@ -56,6 +66,7 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<DuplicateCandidateDetailDto>> GetCandidateById(
@@ -80,6 +91,7 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
 
     [HttpGet("{id:guid}/risk")]
     [ProducesResponseType(typeof(RiskAssessmentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<RiskAssessmentDto>> GetRiskAssessment(
@@ -102,8 +114,22 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
         return Ok(candidate.RiskAssessment);
     }
 
+    [HttpPost("detect")]
+    [Authorize(Policy = AuthorizationConstants.Policies.AdminOnly)]
+    [ProducesResponseType(typeof(CandidateDetectionResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<CandidateDetectionResultDto>> RunDetection(CancellationToken cancellationToken)
+    {
+        var result = await duplicateCandidateService.RunCandidateDetectionAsync(cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPatch("{id:guid}/confirm")]
+    [HttpPost("{id:guid}/confirm")]
     [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<DuplicateCandidateDetailDto>> ConfirmCandidate(
@@ -129,7 +155,9 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
     }
 
     [HttpPatch("{id:guid}/reject")]
+    [HttpPost("{id:guid}/reject")]
     [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<DuplicateCandidateDetailDto>> RejectCandidate(
@@ -154,9 +182,38 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
         }
     }
 
+    [HttpPatch("{id:guid}/reopen")]
+    [HttpPost("{id:guid}/reopen")]
+    [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<DuplicateCandidateDetailDto>> ReopenCandidate(
+        Guid id,
+        [FromBody] UpdateCandidateStatusRequest? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await duplicateCandidateService.UpdateCandidateStatusAsync(id, DuplicateStatus.Potential, request?.ResolutionNotes, cancellationToken);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Duplicate Candidate Not Found",
+                Detail = $"Duplicate candidate with identifier '{id}' was not found.",
+                Instance = HttpContext.Request.Path
+            });
+        }
+    }
+
     [HttpPatch("{id:guid}/status")]
     [ProducesResponseType(typeof(DuplicateCandidateDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<DuplicateCandidateDetailDto>> UpdateStatus(
