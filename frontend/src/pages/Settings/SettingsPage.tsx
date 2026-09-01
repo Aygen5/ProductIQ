@@ -4,9 +4,12 @@ import {
   updateSettings,
   resetSettings,
 } from "../../services/settingsService";
+import { useAuth } from "../../context/AuthContext";
 import type { SystemSettings } from "../../types/settings";
 
 export const SettingsPage: React.FC = () => {
+  const { isAdmin } = useAuth();
+
   const [initialSettings, setInitialSettings] = useState<SystemSettings | null>(null);
   const [formSettings, setFormSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +42,7 @@ export const SettingsPage: React.FC = () => {
     : false;
 
   const handleSave = async () => {
-    if (!formSettings) return;
+    if (!formSettings || !isAdmin) return;
 
     setSaving(true);
     setErrorMessage(null);
@@ -65,6 +68,8 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleReset = async () => {
+    if (!isAdmin) return;
+
     if (!window.confirm("Are you sure you want to reset all settings to system defaults?")) {
       return;
     }
@@ -113,14 +118,21 @@ export const SettingsPage: React.FC = () => {
             <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
             <span>Database Synced</span>
           </div>
-          <button
-            onClick={handleReset}
-            disabled={loading || resetting || saving}
-            className="px-md py-1.5 bg-surface-container border border-outline-variant/10 hover:bg-surface-container-high text-on-surface rounded-xl font-label-md text-label-md font-bold transition-all flex items-center gap-xs disabled:opacity-60"
-          >
-            <span className={`material-symbols-outlined text-[16px] ${resetting ? "animate-spin" : ""}`}>restart_alt</span>
-            <span>Reset Defaults</span>
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={handleReset}
+              disabled={loading || resetting || saving}
+              className="px-md py-1.5 bg-surface-container border border-outline-variant/10 hover:bg-surface-container-high text-on-surface rounded-xl font-label-md text-label-md font-bold transition-all flex items-center gap-xs disabled:opacity-60"
+            >
+              <span className={`material-symbols-outlined text-[16px] ${resetting ? "animate-spin" : ""}`}>restart_alt</span>
+              <span>Reset Defaults</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-xs px-sm py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/10 text-[12px] text-outline">
+              <span className="material-symbols-outlined text-[15px]">lock</span>
+              <span>Read-Only Mode</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -232,6 +244,7 @@ export const SettingsPage: React.FC = () => {
                     min="0"
                     max="1"
                     step="0.05"
+                    disabled={!isAdmin}
                     value={formSettings.similarity.candidateThreshold}
                     onChange={(e) => {
                       const val = parseFloat(e.target.value);
@@ -240,7 +253,7 @@ export const SettingsPage: React.FC = () => {
                         similarity: { ...formSettings.similarity, candidateThreshold: val },
                       });
                     }}
-                    className="w-full accent-primary cursor-pointer"
+                    className={`w-full accent-primary ${isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
                   />
                   <div className="flex justify-between font-label-sm text-[11px] text-outline">
                     <span>Broad Detection (0%)</span>
@@ -269,6 +282,7 @@ export const SettingsPage: React.FC = () => {
                     min="0"
                     max="1"
                     step="0.05"
+                    disabled={!isAdmin}
                     value={formSettings.similarity.autoMergeThreshold}
                     onChange={(e) => {
                       const val = parseFloat(e.target.value);
@@ -277,7 +291,7 @@ export const SettingsPage: React.FC = () => {
                         similarity: { ...formSettings.similarity, autoMergeThreshold: val },
                       });
                     }}
-                    className="w-full accent-secondary cursor-pointer"
+                    className={`w-full accent-secondary ${isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
                   />
                   <div className="flex justify-between font-label-sm text-[11px] text-outline">
                     <span>Low (0%)</span>
@@ -315,6 +329,7 @@ export const SettingsPage: React.FC = () => {
                       type="number"
                       min="1"
                       max="100"
+                      disabled={!isAdmin}
                       value={formSettings.risk.criticalThreshold}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10) || 1;
@@ -323,7 +338,9 @@ export const SettingsPage: React.FC = () => {
                           risk: { ...formSettings.risk, criticalThreshold: val },
                         });
                       }}
-                      className="px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold"
+                      className={`px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold ${
+                        !isAdmin ? "cursor-not-allowed opacity-60" : ""
+                      }`}
                     />
                   </div>
 
@@ -341,6 +358,7 @@ export const SettingsPage: React.FC = () => {
                       type="number"
                       min="1"
                       max="100"
+                      disabled={!isAdmin}
                       value={formSettings.risk.highThreshold}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10) || 1;
@@ -349,7 +367,9 @@ export const SettingsPage: React.FC = () => {
                           risk: { ...formSettings.risk, highThreshold: val },
                         });
                       }}
-                      className="px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold"
+                      className={`px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold ${
+                        !isAdmin ? "cursor-not-allowed opacity-60" : ""
+                      }`}
                     />
                   </div>
 
@@ -367,6 +387,7 @@ export const SettingsPage: React.FC = () => {
                       type="number"
                       min="1"
                       max="100"
+                      disabled={!isAdmin}
                       value={formSettings.risk.mediumThreshold}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10) || 1;
@@ -375,7 +396,9 @@ export const SettingsPage: React.FC = () => {
                           risk: { ...formSettings.risk, mediumThreshold: val },
                         });
                       }}
-                      className="px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold"
+                      className={`px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold ${
+                        !isAdmin ? "cursor-not-allowed opacity-60" : ""
+                      }`}
                     />
                   </div>
                 </div>
@@ -392,6 +415,7 @@ export const SettingsPage: React.FC = () => {
                       type="number"
                       min="1"
                       max="100"
+                      disabled={!isAdmin}
                       value={formSettings.risk.immediateReviewThreshold}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10) || 1;
@@ -400,7 +424,9 @@ export const SettingsPage: React.FC = () => {
                           risk: { ...formSettings.risk, immediateReviewThreshold: val },
                         });
                       }}
-                      className="w-20 px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold text-center"
+                      className={`w-20 px-sm py-1.5 rounded-xl bg-surface-container border border-outline-variant/20 font-mono text-on-surface text-[13px] font-bold text-center ${
+                        !isAdmin ? "cursor-not-allowed opacity-60" : ""
+                      }`}
                     />
                     <span className="text-[12px] text-outline font-bold">pts</span>
                   </div>
@@ -433,9 +459,10 @@ export const SettingsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <label className="relative inline-flex items-center cursor-pointer">
+                  <label className={`relative inline-flex items-center ${isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
                     <input
                       type="checkbox"
+                      disabled={!isAdmin}
                       checked={formSettings.ai.enableAiExplanations}
                       onChange={(e) => {
                         setFormSettings({
@@ -454,6 +481,7 @@ export const SettingsPage: React.FC = () => {
                     <label className="font-label-sm text-label-sm text-outline font-semibold">AI Model Identifier</label>
                     <input
                       type="text"
+                      disabled={!isAdmin}
                       value={formSettings.ai.aiModel}
                       onChange={(e) => {
                         setFormSettings({
@@ -461,7 +489,9 @@ export const SettingsPage: React.FC = () => {
                           ai: { ...formSettings.ai, aiModel: e.target.value },
                         });
                       }}
-                      className="px-sm py-2 rounded-xl bg-surface-container-low border border-outline-variant/20 font-mono text-body-sm text-on-surface font-bold focus:outline-none focus:border-primary"
+                      className={`px-sm py-2 rounded-xl bg-surface-container-low border border-outline-variant/20 font-mono text-body-sm text-on-surface font-bold focus:outline-none focus:border-primary ${
+                        !isAdmin ? "cursor-not-allowed opacity-60" : ""
+                      }`}
                     />
                   </div>
 
@@ -477,6 +507,7 @@ export const SettingsPage: React.FC = () => {
                       min="0"
                       max="1"
                       step="0.05"
+                      disabled={!isAdmin}
                       value={formSettings.ai.temperature}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value);
@@ -485,7 +516,7 @@ export const SettingsPage: React.FC = () => {
                           ai: { ...formSettings.ai, temperature: val },
                         });
                       }}
-                      className="w-full accent-primary cursor-pointer my-auto"
+                      className={`w-full accent-primary my-auto ${isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
                     />
                   </div>
                 </div>
@@ -526,9 +557,10 @@ export const SettingsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className={`relative inline-flex items-center ${isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
                       <input
                         type="checkbox"
+                        disabled={!isAdmin}
                         checked={formSettings.notification.enableEmailNotifications}
                         onChange={(e) => {
                           setFormSettings({
@@ -546,6 +578,7 @@ export const SettingsPage: React.FC = () => {
                     <label className="font-label-sm text-label-sm text-outline font-semibold">Notification Destination Email</label>
                     <input
                       type="email"
+                      disabled={!isAdmin}
                       value={formSettings.notification.notificationEmail || ""}
                       onChange={(e) => {
                         setFormSettings({
@@ -554,7 +587,9 @@ export const SettingsPage: React.FC = () => {
                         });
                       }}
                       placeholder="e.g. alerts@productiq.internal"
-                      className="px-sm py-2 rounded-xl bg-surface-container-low border border-outline-variant/20 font-body-sm text-body-sm text-on-surface font-medium focus:outline-none focus:border-primary"
+                      className={`px-sm py-2 rounded-xl bg-surface-container-low border border-outline-variant/20 font-body-sm text-body-sm text-on-surface font-medium focus:outline-none focus:border-primary ${
+                        !isAdmin ? "cursor-not-allowed opacity-60" : ""
+                      }`}
                     />
                   </div>
 
@@ -571,9 +606,10 @@ export const SettingsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className={`relative inline-flex items-center ${isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
                       <input
                         type="checkbox"
+                        disabled={!isAdmin}
                         checked={formSettings.notification.enableSlackNotifications}
                         onChange={(e) => {
                           setFormSettings({
@@ -590,43 +626,52 @@ export const SettingsPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-between p-md rounded-2xl bg-surface-container border border-outline-variant/10 shadow-sm sticky bottom-6">
-              <div className="text-[12px] text-on-surface-variant">
-                {isDirty ? (
-                  <span className="text-tertiary font-bold flex items-center gap-xs">
-                    <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
-                    You have unsaved changes
-                  </span>
-                ) : (
-                  <span className="text-outline">All settings are up to date</span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-sm">
-                <button
-                  type="button"
-                  onClick={handleDiscard}
-                  disabled={!isDirty || saving}
-                  className="px-md py-2 rounded-xl bg-surface-container-high border border-outline-variant/10 text-on-surface font-label-md text-label-md font-bold hover:bg-surface-variant disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  Discard
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={!isDirty || saving}
-                  className="px-xl py-2 bg-primary text-on-primary rounded-xl font-label-md text-label-md font-bold shadow-md hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-xs"
-                >
-                  {saving ? (
-                    <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+            {isAdmin ? (
+              <div className="flex items-center justify-between p-md rounded-2xl bg-surface-container border border-outline-variant/10 shadow-sm sticky bottom-6">
+                <div className="text-[12px] text-on-surface-variant">
+                  {isDirty ? (
+                    <span className="text-tertiary font-bold flex items-center gap-xs">
+                      <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+                      You have unsaved changes
+                    </span>
                   ) : (
-                    <span className="material-symbols-outlined text-[18px]">save</span>
+                    <span className="text-outline">All settings are up to date</span>
                   )}
-                  <span>Save Configuration</span>
-                </button>
+                </div>
+
+                <div className="flex items-center gap-sm">
+                  <button
+                    type="button"
+                    onClick={handleDiscard}
+                    disabled={!isDirty || saving}
+                    className="px-md py-2 rounded-xl bg-surface-container-high border border-outline-variant/10 text-on-surface font-label-md text-label-md font-bold hover:bg-surface-variant disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    Discard
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={!isDirty || saving}
+                    className="px-xl py-2 bg-primary text-on-primary rounded-xl font-label-md text-label-md font-bold shadow-md hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-xs"
+                  >
+                    {saving ? (
+                      <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">save</span>
+                    )}
+                    <span>Save Configuration</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between p-md rounded-2xl bg-surface-container border border-outline-variant/10 shadow-sm sticky bottom-6 text-xs text-outline">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-primary">admin_panel_settings</span>
+                  <span>System configuration is managed by platform administrators. Standard users have view-only access.</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}

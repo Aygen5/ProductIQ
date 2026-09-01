@@ -5,7 +5,9 @@ import {
   fetchDuplicateSummary,
   confirmDuplicateCandidate,
   rejectDuplicateCandidate,
+  detectDuplicates,
 } from "../../services/duplicateService";
+import { useAuth } from "../../context/AuthContext";
 import type {
   DuplicateCandidateSummary,
   DuplicateCandidatesSummary,
@@ -14,10 +16,13 @@ import type {
 
 export const DuplicateQueuePage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   const [candidates, setCandidates] = useState<DuplicateCandidateSummary[]>([]);
   const [summary, setSummary] = useState<DuplicateCandidatesSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [detecting, setDetecting] = useState<boolean>(false);
+  const [detectSuccess, setDetectSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -98,6 +103,22 @@ export const DuplicateQueuePage: React.FC = () => {
     }
   };
 
+  const handleRunDetection = async () => {
+    setDetecting(true);
+    setError(null);
+    setDetectSuccess(null);
+    try {
+      const res = await detectDuplicates();
+      setDetectSuccess(`Batch duplicate detection completed. Analyzed catalog pairs (${res.detectedCandidatesCount} candidates detected).`);
+      await Promise.all([loadCandidates(), loadSummary()]);
+      setTimeout(() => setDetectSuccess(null), 6000);
+    } catch (err: any) {
+      setError(err.message || "Failed to run batch duplicate detection.");
+    } finally {
+      setDetecting(false);
+    }
+  };
+
   const parseSignals = (matchSignals: string | null) => {
     if (!matchSignals) return null;
     try {
@@ -148,12 +169,35 @@ export const DuplicateQueuePage: React.FC = () => {
       <div className="absolute top-0 right-0 w-96 h-96 bg-primary-container/10 rounded-full blur-3xl -z-10 animate-pulse" style={{ animationDuration: "8s" }}></div>
 
       <div className="flex flex-col gap-lg z-10">
-        <header className="flex flex-col gap-xs mb-md">
-          <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Review Queue</h1>
-          <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
-            Review, confirm, or reject potential duplicate product pairs detected by the automated matching pipeline.
-          </p>
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-md mb-md">
+          <div className="flex flex-col gap-xs">
+            <h1 className="font-headline-xl text-headline-xl text-on-background tracking-tight">Duplicate Review Queue</h1>
+            <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
+              Review, confirm, or reject potential duplicate product pairs detected by the automated matching pipeline.
+            </p>
+          </div>
+
+          {isAdmin && (
+            <button
+              onClick={handleRunDetection}
+              disabled={detecting || loading}
+              className="px-md py-2.5 bg-primary text-on-primary rounded-xl font-label-md text-label-md font-bold shadow-md hover:bg-primary-fixed hover:text-on-primary-fixed disabled:opacity-50 flex items-center gap-xs transition-all flex-shrink-0"
+              title="Run 7-Signal duplicate detection engine across catalog"
+            >
+              <span className={`material-symbols-outlined text-[18px] ${detecting ? "animate-spin" : ""}`}>
+                {detecting ? "progress_activity" : "auto_fix_high"}
+              </span>
+              <span>{detecting ? "Detecting Duplicates..." : "Run Detection Engine"}</span>
+            </button>
+          )}
         </header>
+
+        {detectSuccess && (
+          <div className="p-md rounded-2xl bg-secondary/15 border border-secondary/30 text-secondary font-label-md text-label-md flex items-center gap-sm">
+            <span className="material-symbols-outlined text-[20px]">check_circle</span>
+            <span>{detectSuccess}</span>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-md">
           <div

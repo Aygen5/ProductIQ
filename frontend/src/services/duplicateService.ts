@@ -93,3 +93,13 @@ export async function fetchCandidateRiskAssessment(id: string) {
     method: "GET",
   });
 }
+
+export async function detectDuplicates(candidateThreshold?: number): Promise<{ detectedCandidatesCount: number }> {
+  const queryParams = new URLSearchParams();
+  if (candidateThreshold !== undefined) {
+    queryParams.append("candidateThreshold", candidateThreshold.toString());
+  }
+  return await apiClient<{ detectedCandidatesCount: number }>(`/duplicate-candidates/detect?${queryParams.toString()}`, {
+    method: "POST",
+  });
+}

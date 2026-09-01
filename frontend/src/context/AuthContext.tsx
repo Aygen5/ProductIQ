@@ -81,10 +81,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isAdmin = !!user && (user.role === "Admin" || user.role.toLowerCase() === "admin");
+  const isUser = !!user && !isAdmin;
+
   const value: AuthContextType = {
     user,
     token,
     isAuthenticated: !!user && !!token,
+    isAdmin,
+    isUser,
     isLoading,
     login,
     register,

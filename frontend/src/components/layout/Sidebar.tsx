@@ -1,13 +1,19 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
 export const Sidebar: React.FC = () => {
+  const { user, isAdmin, logout } = useAuth();
+
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center px-md py-sm rounded-xl transition-all group ${
       isActive
         ? "bg-primary-container text-on-primary-container font-semibold"
         : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
     }`;
+
+  const initials = `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() || "U";
+  const fullName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email || "User";
 
   return (
     <aside className="fixed left-0 top-0 h-full w-72 bg-surface-container-lowest z-50 flex flex-col border-r border-outline-variant/10 shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
@@ -67,14 +73,41 @@ export const Sidebar: React.FC = () => {
           <span className="material-symbols-outlined mr-md">settings</span>
           <span className="font-label-md text-label-md">Settings</span>
         </NavLink>
-        <div className="flex items-center gap-md p-sm rounded-xl bg-surface-container-low mt-xs">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-on-primary text-[18px]">person</span>
+        <div className="flex items-center justify-between p-sm rounded-xl bg-surface-container-low mt-xs border border-outline-variant/10">
+          <div className="flex items-center gap-md overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center flex-shrink-0 font-bold text-xs tracking-wider">
+              {initials}
+            </div>
+            <div className="overflow-hidden">
+              <div className="flex items-center gap-1.5">
+                <p className="font-label-sm text-label-sm text-on-surface truncate font-semibold" title={fullName}>
+                  {fullName}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {isAdmin ? (
+                  <span className="px-1.5 py-0.2 rounded bg-primary/20 text-primary border border-primary/30 text-[9px] font-bold uppercase tracking-wider">
+                    Admin
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.2 rounded bg-surface-container-highest text-outline text-[9px] font-semibold uppercase tracking-wider">
+                    User
+                  </span>
+                )}
+                <span className="text-[10px] text-outline truncate" title={user?.email}>
+                  {user?.email}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="overflow-hidden">
-            <p className="font-label-sm text-label-sm text-on-surface truncate">Alex Chen</p>
-            <p className="font-body-sm text-[10px] text-outline truncate">Lead Architect</p>
-          </div>
+          <button
+            onClick={logout}
+            className="w-8 h-8 flex items-center justify-center text-outline hover:text-error hover:bg-error-container/20 rounded-lg transition-colors flex-shrink-0 ml-1"
+            title="Sign out of ProductIQ"
+            aria-label="Logout"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+          </button>
         </div>
       </div>
     </aside>

@@ -1,7 +1,9 @@
-﻿import React from "react";
+import React from "react";
 import { useLocation, Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
 export const Header: React.FC = () => {
+  const { user, isAdmin } = useAuth();
   const location = useLocation();
   const path = location.pathname;
 
@@ -53,6 +55,15 @@ export const Header: React.FC = () => {
         {getBreadcrumb()}
       </div>
       <div className="flex items-center gap-md">
+        {user && (
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-container-high/60 border border-outline-variant/10 text-xs">
+            <span className={`w-2 h-2 rounded-full ${isAdmin ? "bg-primary animate-pulse" : "bg-secondary"}`} />
+            <span className="font-medium text-on-surface">{user.firstName} {user.lastName}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isAdmin ? "bg-primary/20 text-primary border border-primary/30" : "bg-surface-container-highest text-outline"}`}>
+              {user.role}
+            </span>
+          </div>
+        )}
         <button className="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors" aria-label="Notifications">
           <span className="material-symbols-outlined">notifications</span>
         </button>
