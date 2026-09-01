@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import { DashboardPage } from "./pages/Dashboard/DashboardPage";
@@ -10,11 +10,15 @@ import { SearchPlaygroundPage } from "./pages/Search/SearchPlaygroundPage";
 import { RiskAnalysisPage } from "./pages/Risk/RiskAnalysisPage";
 import { AnalyticsPage } from "./pages/Analytics/AnalyticsPage";
 import { SettingsPage } from "./pages/Settings/SettingsPage";
+import { LoginPage } from "./pages/Auth/LoginPage";
+import { RegisterPage } from "./pages/Auth/RegisterPage";
 
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
