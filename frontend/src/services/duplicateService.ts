@@ -1,3 +1,4 @@
+import { apiClient } from "./apiClient";
 import type {
   DuplicateCandidateDetail,
   DuplicateCandidatesSummary,
@@ -5,8 +6,6 @@ import type {
   DuplicateStatus,
   PagedDuplicateResponse,
 } from "../types/duplicate";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 export async function fetchDuplicateCandidates(
   params: DuplicateQueryParams = {}
@@ -41,97 +40,41 @@ export async function fetchDuplicateCandidates(
     queryParams.append("sortDirection", params.sortDirection);
   }
 
-  const response = await fetch(`${API_BASE_URL}/duplicate-candidates?${queryParams.toString()}`, {
+  return await apiClient<PagedDuplicateResponse>(`/duplicate-candidates?${queryParams.toString()}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch duplicate candidates (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function fetchDuplicateCandidateById(id: string): Promise<DuplicateCandidateDetail> {
-  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}`, {
+  return await apiClient<DuplicateCandidateDetail>(`/duplicate-candidates/${encodeURIComponent(id)}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (response.status === 404) {
-    const err = new Error(`Duplicate candidate with ID '${id}' was not found.`);
-    (err as any).status = 404;
-    throw err;
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch duplicate candidate detail (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function fetchDuplicateSummary(): Promise<DuplicateCandidatesSummary> {
-  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/summary`, {
+  return await apiClient<DuplicateCandidatesSummary>("/duplicate-candidates/summary", {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch duplicate summary (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function confirmDuplicateCandidate(
   id: string,
   resolutionNotes?: string
 ): Promise<DuplicateCandidateDetail> {
-  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/confirm`, {
+  return await apiClient<DuplicateCandidateDetail>(`/duplicate-candidates/${encodeURIComponent(id)}/confirm`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ resolutionNotes }),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to confirm duplicate candidate (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function rejectDuplicateCandidate(
   id: string,
   resolutionNotes?: string
 ): Promise<DuplicateCandidateDetail> {
-  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/reject`, {
+  return await apiClient<DuplicateCandidateDetail>(`/duplicate-candidates/${encodeURIComponent(id)}/reject`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ resolutionNotes }),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to reject duplicate candidate (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function updateCandidateStatus(
@@ -139,40 +82,14 @@ export async function updateCandidateStatus(
   status: DuplicateStatus,
   resolutionNotes?: string
 ): Promise<DuplicateCandidateDetail> {
-  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/status`, {
+  return await apiClient<DuplicateCandidateDetail>(`/duplicate-candidates/${encodeURIComponent(id)}/status`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ status, resolutionNotes }),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to update candidate status (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function fetchCandidateRiskAssessment(id: string) {
-  const response = await fetch(`${API_BASE_URL}/duplicate-candidates/${encodeURIComponent(id)}/risk`, {
+  return await apiClient(`/duplicate-candidates/${encodeURIComponent(id)}/risk`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (response.status === 404) {
-    const err = new Error(`Candidate with ID '${id}' was not found.`);
-    (err as any).status = 404;
-    throw err;
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch risk assessment (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }

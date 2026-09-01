@@ -1,6 +1,5 @@
+import { apiClient } from "./apiClient";
 import type { SearchRequest, SearchResponse, QueryAnalysis } from "../types/search";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 export async function searchProducts(request: SearchRequest): Promise<SearchResponse> {
   const queryParams = new URLSearchParams();
@@ -33,19 +32,9 @@ export async function searchProducts(request: SearchRequest): Promise<SearchResp
     queryParams.append("pageSize", request.pageSize.toString());
   }
 
-  const response = await fetch(`${API_BASE_URL}/search?${queryParams.toString()}`, {
+  return await apiClient<SearchResponse>(`/search?${queryParams.toString()}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Search request failed (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function analyzeQuery(query: string): Promise<QueryAnalysis> {
@@ -54,17 +43,7 @@ export async function analyzeQuery(query: string): Promise<QueryAnalysis> {
     queryParams.append("q", query.trim());
   }
 
-  const response = await fetch(`${API_BASE_URL}/search/analyze?${queryParams.toString()}`, {
+  return await apiClient<QueryAnalysis>(`/search/analyze?${queryParams.toString()}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Query analysis failed (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }

@@ -1,6 +1,5 @@
+import { apiClient } from "./apiClient";
 import type { PagedResponse, ProductDetail, ProductQueryParams, ProductSummary } from "../types/product";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 export async function fetchProducts(params: ProductQueryParams): Promise<PagedResponse<ProductSummary>> {
   const queryParams = new URLSearchParams();
@@ -30,40 +29,13 @@ export async function fetchProducts(params: ProductQueryParams): Promise<PagedRe
     queryParams.append("sortDirection", params.sortDirection);
   }
 
-  const response = await fetch(`${API_BASE_URL}/products?${queryParams.toString()}`, {
+  return await apiClient<PagedResponse<ProductSummary>>(`/products?${queryParams.toString()}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch products (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export async function fetchProductById(id: string): Promise<ProductDetail> {
-  const response = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(id)}`, {
+  return await apiClient<ProductDetail>(`/products/${encodeURIComponent(id)}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
-
-  if (response.status === 404) {
-    const errorMsg = `Product with ID '${id}' was not found.`;
-    const err = new Error(errorMsg);
-    (err as any).status = 404;
-    throw err;
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch product detail (${response.status}): ${errorText}`);
-  }
-
-  return await response.json();
 }
