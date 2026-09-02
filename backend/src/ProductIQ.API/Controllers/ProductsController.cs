@@ -14,7 +14,9 @@ using ProductIQ.Application.Interfaces;
 [Route("api/[controller]")]
 [Produces("application/json")]
 [Authorize]
-public class ProductsController(IProductService productService) : ControllerBase
+public class ProductsController(
+    IProductService productService,
+    IProductImportService productImportService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResponse<ProductSummaryDto>), StatusCodes.Status200OK)]
@@ -83,5 +85,35 @@ public class ProductsController(IProductService productService) : ControllerBase
         }
 
         return Ok(product);
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(ProductDetailDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ProductDetailDto>> CreateProduct(
+        [FromBody] CreateProductRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var created = await productService.CreateProductAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(GetProductById), new { id = created.Id }, created);
+    }
+
+    [HttpPost("import")]
+    [ProducesResponseType(typeof(ProductImportResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ProductImportResultDto>> ImportProducts(
+        [FromQuery] int batchSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await productImportService.ImportAboProductsAsync(batchSize, cancellationToken);
+        return Ok(result);
     }
 }

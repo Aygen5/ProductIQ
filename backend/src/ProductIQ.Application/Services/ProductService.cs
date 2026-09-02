@@ -89,6 +89,68 @@ public class ProductService(IProductIQDbContext context) : IProductService
         return product == null ? null : MapToDetailDto(product);
     }
 
+    public async Task<ProductDetailDto> CreateProductAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
+    {
+        var asin = !string.IsNullOrWhiteSpace(request.AmazonItemId)
+            ? request.AmazonItemId.Trim()
+            : $"PIQ-{Guid.NewGuid():N}"[..14].ToUpperInvariant();
+
+        var exists = await context.Products.AnyAsync(p => p.AmazonItemId == asin, cancellationToken);
+        if (exists)
+        {
+            asin = $"{asin}-{Guid.NewGuid():N}"[..18].ToUpperInvariant();
+        }
+
+        var product = new Product
+        {
+            AmazonItemId = asin,
+            Name = request.Name.Trim(),
+            Brand = string.IsNullOrWhiteSpace(request.Brand) ? null : request.Brand.Trim(),
+            Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim(),
+            ProductType = string.IsNullOrWhiteSpace(request.ProductType) ? null : request.ProductType.Trim().ToUpperInvariant(),
+            ModelName = string.IsNullOrWhiteSpace(request.ModelName) ? null : request.ModelName.Trim(),
+            ModelNumber = string.IsNullOrWhiteSpace(request.ModelNumber) ? null : request.ModelNumber.Trim(),
+            Color = string.IsNullOrWhiteSpace(request.Color) ? null : request.Color.Trim(),
+            Material = string.IsNullOrWhiteSpace(request.Material) ? null : request.Material.Trim(),
+            Price = request.Price,
+            Currency = string.IsNullOrWhiteSpace(request.Currency) ? "USD" : request.Currency.Trim().ToUpperInvariant(),
+            MainImageUrl = string.IsNullOrWhiteSpace(request.MainImageUrl) ? null : request.MainImageUrl.Trim(),
+            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+            Country = "US",
+            DomainName = "amazon.com",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        if (!string.IsNullOrWhiteSpace(product.MainImageUrl))
+        {
+            product.Images.Add(new ProductImage
+            {
+                ImageId = $"IMG-{Guid.NewGuid():N}"[..12].ToUpperInvariant(),
+                Path = product.MainImageUrl,
+                Url = product.MainImageUrl,
+                IsMain = true
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(product.Brand))
+        {
+            product.Attributes.Add(new ProductAttribute { Key = "Brand", Value = product.Brand });
+        }
+        if (!string.IsNullOrWhiteSpace(product.Color))
+        {
+            product.Attributes.Add(new ProductAttribute { Key = "Color", Value = product.Color });
+        }
+        if (!string.IsNullOrWhiteSpace(product.Material))
+        {
+            product.Attributes.Add(new ProductAttribute { Key = "Material", Value = product.Material });
+        }
+
+        context.Products.Add(product);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return MapToDetailDto(product);
+    }
+
     private static IQueryable<Product> ApplySorting(IQueryable<Product> query, string? sortBy, bool sortDescending)
     {
         return (sortBy?.ToLowerInvariant(), sortDescending) switch

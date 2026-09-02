@@ -11,4 +11,5 @@ public interface IAnalyticsService
     Task<DuplicateAnalyticsDto> GetDuplicateAnalyticsAsync(CancellationToken cancellationToken = default);
     Task<RiskAnalyticsDto> GetRiskAnalyticsAsync(CancellationToken cancellationToken = default);
     Task<SearchAnalyticsDto> GetSearchAnalyticsAsync(CancellationToken cancellationToken = default);
+    Task<CatalogHealthDto> GetCatalogHealthAsync(string period = "30d", CancellationToken cancellationToken = default);
 }

@@ -84,3 +84,28 @@ export interface ProductDetail {
   createdAt: string;
   updatedAt: string | null;
 }
+
+export interface CreateProductPayload {
+  name: string;
+  amazonItemId?: string;
+  brand?: string;
+  category?: string;
+  productType?: string;
+  modelName?: string;
+  modelNumber?: string;
+  color?: string;
+  material?: string;
+  price?: number;
+  currency?: string;
+  mainImageUrl?: string;
+  description?: string;
+}
+
+export interface ProductImportResult {
+  success: boolean;
+  importedCount: number;
+  updatedCount: number;
+  totalProductsNow: number;
+  executionTimeMs: number;
+  message: string;
+}

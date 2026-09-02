@@ -59,4 +59,15 @@ public class AnalyticsController(IAnalyticsService analyticsService) : Controlle
         var search = await analyticsService.GetSearchAnalyticsAsync(cancellationToken);
         return Ok(search);
     }
+
+    [HttpGet("catalog-health")]
+    [ProducesResponseType(typeof(CatalogHealthDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CatalogHealthDto>> GetCatalogHealth(
+        [FromQuery] string period = "30d",
+        CancellationToken cancellationToken = default)
+    {
+        var health = await analyticsService.GetCatalogHealthAsync(period, cancellationToken);
+        return Ok(health);
+    }
 }

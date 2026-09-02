@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getAnalyticsSummary } from "../../services/analyticsService";
+import { getAnalyticsSummary, getCatalogHealth } from "../../services/analyticsService";
 import { fetchDuplicateCandidates } from "../../services/duplicateService";
-import type { AnalyticsSummary } from "../../types/analytics";
+import type { AnalyticsSummary, CatalogHealth } from "../../types/analytics";
 import type { DuplicateCandidateSummary } from "../../types/duplicate";
 
 export const DashboardPage: React.FC = () => {
   const [timeRange, setTimeRange] = useState<"7D" | "30D" | "90D">("30D");
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  const [catalogHealth, setCatalogHealth] = useState<CatalogHealth | null>(null);
+  const [healthLoading, setHealthLoading] = useState<boolean>(false);
   const [recentDuplicates, setRecentDuplicates] = useState<DuplicateCandidateSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
@@ -40,6 +42,31 @@ export const DashboardPage: React.FC = () => {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchHealth() {
+      setHealthLoading(true);
+      try {
+        const data = await getCatalogHealth(timeRange);
+        if (isMounted) {
+          setCatalogHealth(data);
+        }
+      } catch {
+      } finally {
+        if (isMounted) {
+          setHealthLoading(false);
+        }
+      }
+    }
+
+    fetchHealth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [timeRange]);
 
   const totalProducts = analytics ? analytics.catalog.totalProducts.toLocaleString() : "100";
   const potentialDuplicates = analytics ? analytics.duplicates.totalCandidates.toLocaleString() : "35";
@@ -92,6 +119,42 @@ export const DashboardPage: React.FC = () => {
     if (score >= 0.45) return "bg-tertiary";
     return "bg-secondary";
   };
+
+  const healthPoints = catalogHealth?.dataPoints || [];
+  const hpCount = healthPoints.length;
+  const maxDupsInPeriod = Math.max(1, ...(healthPoints.map((p) => p.duplicatesDetected)));
+
+  const qualityScoreCoords = hpCount > 1
+    ? healthPoints.map((p, i) => ({
+        x: Math.round(30 + (i / (hpCount - 1)) * 940),
+        y: Math.round(250 - ((p.qualityScore - 40) / 60) * 210),
+      }))
+    : [
+        { x: 30, y: 150 },
+        { x: 970, y: 150 },
+      ];
+
+  const duplicatesCoords = hpCount > 1
+    ? healthPoints.map((p, i) => ({
+        x: Math.round(30 + (i / (hpCount - 1)) * 940),
+        y: Math.round(260 - (p.duplicatesDetected / maxDupsInPeriod) * 170),
+      }))
+    : [
+        { x: 30, y: 220 },
+        { x: 970, y: 220 },
+      ];
+
+  const qualityPath = qualityScoreCoords.map((pt, i) => `${i === 0 ? "M" : "L"}${pt.x},${pt.y}`).join(" ");
+  const qualityArea = `${qualityPath} L970,280 L30,280 Z`;
+  const duplicatesPath = duplicatesCoords.map((pt, i) => `${i === 0 ? "M" : "L"}${pt.x},${pt.y}`).join(" ");
+
+  const sampleIndices = hpCount > 4
+    ? [0, Math.floor(hpCount * 0.25), Math.floor(hpCount * 0.5), Math.floor(hpCount * 0.75), hpCount - 1]
+    : hpCount > 0
+    ? healthPoints.map((_, i) => i)
+    : [];
+
+  const displayDates = sampleIndices.map((idx) => healthPoints[idx]?.date).filter(Boolean);
 
   return (
     <div className="flex flex-col w-full gap-lg">
@@ -179,11 +242,23 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
         <div className="lg:col-span-2 bg-surface-container-low rounded-xl p-md flex flex-col min-h-[400px]">
           <div className="flex justify-between items-center mb-md">
-            <h2 className="font-headline-md text-headline-md text-on-surface">Catalog Health</h2>
+            <div className="flex items-center gap-sm">
+              <h2 className="font-headline-md text-headline-md text-on-surface">Catalog Health</h2>
+              {catalogHealth && (
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono text-[11px] font-bold">
+                  {catalogHealth.currentQualityScore}% Score
+                </span>
+              )}
+              {healthLoading && (
+                <span className="material-symbols-outlined text-primary text-[18px] animate-spin">
+                  progress_activity
+                </span>
+              )}
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setTimeRange("7D")}
-                className={`px-3 py-1 rounded-full text-label-sm font-label-sm transition-colors ${
+                className={`px-3 py-1 rounded-full text-label-sm font-label-sm transition-colors cursor-pointer ${
                   timeRange === "7D" ? "bg-primary text-on-primary shadow-md" : "bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
                 }`}
               >
@@ -191,7 +266,7 @@ export const DashboardPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setTimeRange("30D")}
-                className={`px-3 py-1 rounded-full text-label-sm font-label-sm transition-colors ${
+                className={`px-3 py-1 rounded-full text-label-sm font-label-sm transition-colors cursor-pointer ${
                   timeRange === "30D" ? "bg-primary text-on-primary shadow-md" : "bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
                 }`}
               >
@@ -199,7 +274,7 @@ export const DashboardPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setTimeRange("90D")}
-                className={`px-3 py-1 rounded-full text-label-sm font-label-sm transition-colors ${
+                className={`px-3 py-1 rounded-full text-label-sm font-label-sm transition-colors cursor-pointer ${
                   timeRange === "90D" ? "bg-primary text-on-primary shadow-md" : "bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
                 }`}
               >
@@ -215,27 +290,37 @@ export const DashboardPage: React.FC = () => {
               <line className="text-outline" stroke="currentColor" strokeOpacity="0.1" strokeWidth="1" x1="0" x2="1000" y1="275" y2="275" />
 
               <path
-                className="text-primary"
-                d="M0,250 C100,240 200,200 300,210 C400,220 500,150 600,160 C700,170 800,100 900,90 C950,85 1000,70 1000,70"
+                d={qualityArea}
+                fill="url(#gradientPrimary)"
+                opacity="0.1"
+              />
+
+              <path
+                className="text-primary transition-all duration-500"
+                d={qualityPath}
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="3"
               />
 
               <path
-                className="text-tertiary opacity-70"
-                d="M0,150 C100,160 200,190 300,180 C400,170 500,210 600,200 C700,190 800,240 900,250 C950,255 1000,260 1000,260"
+                className="text-tertiary opacity-70 transition-all duration-500"
+                d={duplicatesPath}
                 fill="none"
                 stroke="currentColor"
                 strokeDasharray="4,4"
                 strokeWidth="2"
               />
 
-              <path
-                d="M0,250 C100,240 200,200 300,210 C400,220 500,150 600,160 C700,170 800,100 900,90 C950,85 1000,70 1000,70 L1000,300 L0,300 Z"
-                fill="url(#gradientPrimary)"
-                opacity="0.1"
-              />
+              {hpCount <= 10 && qualityScoreCoords.map((pt, i) => (
+                <circle
+                  key={`q-${i}`}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r="4"
+                  className="fill-primary"
+                />
+              ))}
 
               <defs>
                 <linearGradient id="gradientPrimary" x1="0%" x2="0%" y1="0%" y2="100%">
@@ -245,14 +330,27 @@ export const DashboardPage: React.FC = () => {
               </defs>
             </svg>
           </div>
+
+          {displayDates.length > 0 && (
+            <div className="flex justify-between text-[11px] text-outline px-sm pt-xs border-t border-outline-variant/10">
+              {displayDates.map((d, i) => (
+                <span key={i}>{d}</span>
+              ))}
+            </div>
+          )}
+
           <div className="flex justify-center gap-xl mt-md">
             <div className="flex items-center gap-xs">
               <div className="w-3 h-3 rounded-full bg-primary"></div>
-              <span className="text-body-sm font-body-sm text-on-surface-variant">Overall Quality Score</span>
+              <span className="text-body-sm font-body-sm text-on-surface-variant">
+                Overall Quality Score {catalogHealth ? `(${catalogHealth.currentQualityScore}%)` : ""}
+              </span>
             </div>
             <div className="flex items-center gap-xs">
               <div className="w-3 h-3 rounded-full bg-tertiary opacity-70"></div>
-              <span className="text-body-sm font-body-sm text-on-surface-variant">Duplicates Detected</span>
+              <span className="text-body-sm font-body-sm text-on-surface-variant">
+                Duplicates Detected {catalogHealth ? `(${catalogHealth.totalDuplicatesDetected})` : ""}
+              </span>
             </div>
           </div>
         </div>

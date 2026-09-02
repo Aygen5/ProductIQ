@@ -69,3 +69,18 @@ export interface AnalyticsSummary {
   search: SearchAnalytics;
   generatedAt: string;
 }
+
+export interface CatalogHealthDataPoint {
+  date: string;
+  qualityScore: number;
+  duplicatesDetected: number;
+  totalProducts: number;
+}
+
+export interface CatalogHealth {
+  period: "7D" | "30D" | "90D" | string;
+  currentQualityScore: number;
+  totalDuplicatesDetected: number;
+  totalProducts: number;
+  dataPoints: CatalogHealthDataPoint[];
+}

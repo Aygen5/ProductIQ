@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchProducts } from "../../services/productService";
 import type { ProductSummary } from "../../types/product";
+import { ImportDataModal } from "../../components/products/ImportDataModal";
+import { NewProductModal } from "../../components/products/NewProductModal";
 
 export const ProductCatalogPage: React.FC = () => {
   const navigate = useNavigate();
@@ -26,6 +28,9 @@ export const ProductCatalogPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [reloadTrigger, setReloadTrigger] = useState<number>(0);
+  const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
+  const [isNewProductModalOpen, setIsNewProductModalOpen] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -125,16 +130,45 @@ export const ProductCatalogPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-md shrink-0">
-          <button className="flex items-center gap-base px-md py-sm bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md text-label-md rounded-xl transition-all outline-none border border-outline-variant/30 shadow-sm focus:ring-2 focus:ring-primary/20">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-base px-md py-sm bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md text-label-md rounded-xl transition-all outline-none border border-outline-variant/30 shadow-sm focus:ring-2 focus:ring-primary/20 cursor-pointer"
+          >
             <span className="material-symbols-outlined text-[18px]">upload</span>
             Import Data
           </button>
-          <button className="flex items-center gap-base px-md py-sm bg-primary hover:bg-primary-fixed text-on-primary font-label-md text-label-md rounded-xl transition-all shadow-md outline-none focus:ring-4 focus:ring-primary/20">
+          <button
+            onClick={() => setIsNewProductModalOpen(true)}
+            className="flex items-center gap-base px-md py-sm bg-primary hover:bg-primary-fixed text-on-primary font-label-md text-label-md rounded-xl transition-all shadow-md outline-none focus:ring-4 focus:ring-primary/20 cursor-pointer"
+          >
             <span className="material-symbols-outlined text-[18px]">add</span>
             New Product
           </button>
         </div>
       </div>
+
+      {feedback && (
+        <div
+          className={`mb-md p-md rounded-2xl border flex items-center justify-between transition-all z-10 ${
+            feedback.type === "success"
+              ? "bg-secondary-container/20 border-secondary/30 text-on-surface"
+              : "bg-error-container/20 border-error/30 text-error"
+          }`}
+        >
+          <div className="flex items-center gap-sm">
+            <span className="material-symbols-outlined text-[20px]">
+              {feedback.type === "success" ? "check_circle" : "error"}
+            </span>
+            <span className="font-body-md text-body-md font-medium">{feedback.message}</span>
+          </div>
+          <button
+            onClick={() => setFeedback(null)}
+            className="text-on-surface-variant hover:text-on-surface"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      )}
 
       <div className="bg-surface-container-low rounded-xl mb-md p-md shadow-sm border border-outline-variant/20 flex flex-col gap-md relative z-10">
         <div className="flex flex-col lg:flex-row gap-md">
@@ -456,6 +490,29 @@ export const ProductCatalogPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ImportDataModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={(result) => {
+          setFeedback({ type: "success", message: result.message });
+          setReloadTrigger((p) => p + 1);
+          setTimeout(() => setFeedback(null), 6000);
+        }}
+      />
+
+      <NewProductModal
+        isOpen={isNewProductModalOpen}
+        onClose={() => setIsNewProductModalOpen(false)}
+        onSuccess={(product) => {
+          setFeedback({
+            type: "success",
+            message: `Product "${product.name}" created successfully (ID: ${product.amazonItemId}).`,
+          });
+          setReloadTrigger((p) => p + 1);
+          setTimeout(() => setFeedback(null), 6000);
+        }}
+      />
     </div>
   );
 };

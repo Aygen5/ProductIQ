@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IProductImportService, Services.DataImport.ProductImportService>();
         services.AddScoped<UserSeeder>();
 
         return services;

@@ -39,3 +39,16 @@ export async function fetchProductById(id: string): Promise<ProductDetail> {
     method: "GET",
   });
 }
+
+export async function createProduct(payload: import("../types/product").CreateProductPayload): Promise<ProductDetail> {
+  return await apiClient<ProductDetail>("/products", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function importProducts(batchSize: number = 25): Promise<import("../types/product").ProductImportResult> {
+  return await apiClient<import("../types/product").ProductImportResult>(`/products/import?batchSize=${batchSize}`, {
+    method: "POST",
+  });
+}

@@ -268,4 +268,97 @@ public class AnalyticsService : IAnalyticsService
             RecentSearches = recent
         };
     }
+
+    public async Task<CatalogHealthDto> GetCatalogHealthAsync(string period = "30d", CancellationToken cancellationToken = default)
+    {
+        var normalizedPeriod = period?.Trim().ToUpperInvariant() switch
+        {
+            "7D" => "7D",
+            "90D" => "90D",
+            _ => "30D"
+        };
+
+        var days = normalizedPeriod switch
+        {
+            "7D" => 7,
+            "90D" => 90,
+            _ => 30
+        };
+
+        var productDates = await _context.Products
+            .Select(p => p.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var duplicateItems = await _context.DuplicateCandidates
+            .Select(d => new { d.CreatedAt, d.Status })
+            .ToListAsync(cancellationToken);
+
+        var totalProducts = productDates.Count;
+        var totalDuplicates = duplicateItems.Count;
+        var withImages = await _context.Products.CountAsync(p => p.Images.Any(), cancellationToken);
+        var withAttributes = await _context.Products.CountAsync(p => p.Attributes.Any(), cancellationToken);
+
+        var completenessRatio = totalProducts > 0
+            ? (double)(withImages + withAttributes) / (totalProducts * 2.0)
+            : 0.85;
+
+        var baseScore = 75.0 + (completenessRatio * 20.0);
+
+        var today = DateTime.UtcNow.Date;
+        var startDate = today.AddDays(-(days - 1));
+
+        var stepDays = normalizedPeriod switch
+        {
+            "90D" => 3,
+            _ => 1
+        };
+
+        var dataPoints = new List<CatalogHealthDataPointDto>();
+
+        for (var date = startDate; date <= today; date = date.AddDays(stepDays))
+        {
+            var endOfDay = date.AddDays(1).AddTicks(-1);
+
+            var prodsAtDate = productDates.Count(d => d <= endOfDay);
+            var dupsAtDate = duplicateItems.Count(d => d.CreatedAt <= endOfDay);
+            var resolvedDupsAtDate = duplicateItems.Count(d => d.CreatedAt <= endOfDay && d.Status != DuplicateStatus.Potential);
+
+            double score;
+            if (prodsAtDate == 0)
+            {
+                score = 80.0;
+            }
+            else
+            {
+                var dupRatio = (double)dupsAtDate / Math.Max(1, prodsAtDate);
+                var resolvedRatio = dupsAtDate > 0 ? (double)resolvedDupsAtDate / dupsAtDate : 0.0;
+                var penalty = dupRatio * 25.0;
+                var resolutionBonus = resolvedRatio * 5.0;
+                score = Math.Clamp(baseScore - penalty + resolutionBonus, 45.0, 98.0);
+            }
+
+            var dateLabel = normalizedPeriod == "7D"
+                ? date.ToString("ddd, MMM d")
+                : date.ToString("MMM d");
+
+            dataPoints.Add(new CatalogHealthDataPointDto
+            {
+                Date = dateLabel,
+                QualityScore = Math.Round(score, 1),
+                DuplicatesDetected = dupsAtDate,
+                TotalProducts = prodsAtDate
+            });
+        }
+
+        var currentScore = dataPoints.Count > 0 ? dataPoints[^1].QualityScore : 85.0;
+
+        return new CatalogHealthDto
+        {
+            Period = normalizedPeriod,
+            CurrentQualityScore = currentScore,
+            TotalDuplicatesDetected = totalDuplicates,
+            TotalProducts = totalProducts,
+            DataPoints = dataPoints
+        };
+    }
 }
