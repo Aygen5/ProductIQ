@@ -1,13 +1,100 @@
-﻿import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { getAnalyticsSummary } from "../../services/analyticsService";
+import { fetchDuplicateCandidates } from "../../services/duplicateService";
+import type { AnalyticsSummary } from "../../types/analytics";
+import type { DuplicateCandidateSummary } from "../../types/duplicate";
 
 export const DashboardPage: React.FC = () => {
   const [timeRange, setTimeRange] = useState<"7D" | "30D" | "90D">("30D");
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  const [recentDuplicates, setRecentDuplicates] = useState<DuplicateCandidateSummary[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [analyticsData, duplicateData] = await Promise.all([
+          getAnalyticsSummary().catch(() => null),
+          fetchDuplicateCandidates({ page: 1, pageSize: 5, sortBy: "score", sortDirection: "desc" }).catch(() => null),
+        ]);
+
+        if (isMounted) {
+          if (analyticsData) setAnalytics(analyticsData);
+          if (duplicateData?.items) setRecentDuplicates(duplicateData.items);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const totalProducts = analytics ? analytics.catalog.totalProducts.toLocaleString() : "100";
+  const potentialDuplicates = analytics ? analytics.duplicates.totalCandidates.toLocaleString() : "35";
+  const riskAlerts = analytics ? (analytics.risk.criticalRiskCount + analytics.risk.highRiskCount).toLocaleString() : "25";
+  const searchQuality = analytics?.search?.averageSearchRelevancePercent != null
+    ? `${analytics.search.averageSearchRelevancePercent}%`
+    : "20%";
+
+  const pendingCount = analytics ? analytics.duplicates.pendingReviewCount : 33;
+  const confirmedCount = analytics ? analytics.duplicates.confirmedCount : 1;
+  const rejectedCount = analytics ? analytics.duplicates.rejectedCount : 1;
+  const totalFlags = analytics ? analytics.duplicates.totalCandidates : 35;
+
+  const pendingPct = Math.round((pendingCount / (totalFlags || 1)) * 100);
+  const confirmedPct = Math.round((confirmedCount / (totalFlags || 1)) * 100);
+  const rejectedPct = Math.round((rejectedCount / (totalFlags || 1)) * 100);
+
+  const renderStatusBadge = (status: number) => {
+    switch (status) {
+      case 1:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-secondary/10 text-secondary font-label-sm text-[11px] font-semibold">
+            Confirmed
+          </span>
+        );
+      case 2:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant font-label-sm text-[11px] font-semibold">
+            Rejected
+          </span>
+        );
+      case 3:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-primary/10 text-primary font-label-sm text-[11px] font-semibold">
+            Merged
+          </span>
+        );
+      case 0:
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full bg-tertiary/10 text-tertiary font-label-sm text-[11px] font-semibold">
+            Review
+          </span>
+        );
+    }
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 0.55) return "bg-primary";
+    if (score >= 0.45) return "bg-tertiary";
+    return "bg-secondary";
+  };
 
   return (
     <div className="flex flex-col w-full gap-lg">
-      {/* Header */}
       <div className="flex flex-col gap-xs mb-sm">
         <h1 className="font-headline-xl text-headline-xl text-on-surface">Product Intelligence Overview</h1>
         <p className="font-body-lg text-body-lg text-on-surface-variant max-w-3xl">
@@ -15,9 +102,7 @@ export const DashboardPage: React.FC = () => {
         </p>
       </div>
 
-      {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
-        {/* KPI 1 */}
         <div
           onClick={() => navigate("/products")}
           className="bg-surface-container-low rounded-xl p-md flex flex-col gap-sm relative overflow-hidden group cursor-pointer"
@@ -28,15 +113,14 @@ export const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined text-outline text-[20px]">inventory_2</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">52,431</span>
+            <span className="font-headline-lg text-headline-lg text-on-surface">{totalProducts}</span>
             <div className="flex items-center text-secondary mb-xs bg-secondary/10 px-2 py-0.5 rounded-full">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
-              <span className="font-label-sm text-label-sm ml-1">+2.4%</span>
+              <span className="material-symbols-outlined text-[14px]">inventory</span>
+              <span className="font-label-sm text-label-sm ml-1">Live ABO</span>
             </div>
           </div>
         </div>
 
-        {/* KPI 2 */}
         <div
           onClick={() => navigate("/duplicates")}
           className="bg-surface-container-low rounded-xl p-md flex flex-col gap-sm relative overflow-hidden group cursor-pointer"
@@ -47,56 +131,52 @@ export const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined text-outline text-[20px]">content_copy</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">3,821</span>
-            <div className="flex items-center text-secondary mb-xs bg-secondary/10 px-2 py-0.5 rounded-full">
-              <span className="material-symbols-outlined text-[14px]">trending_down</span>
-              <span className="font-label-sm text-label-sm ml-1">-5.2%</span>
+            <span className="font-headline-lg text-headline-lg text-on-surface">{potentialDuplicates}</span>
+            <div className="flex items-center text-tertiary mb-xs bg-tertiary/10 px-2 py-0.5 rounded-full">
+              <span className="material-symbols-outlined text-[14px]">psychology</span>
+              <span className="font-label-sm text-label-sm ml-1">7-Signal</span>
             </div>
           </div>
         </div>
 
-        {/* KPI 3 */}
         <div
           onClick={() => navigate("/risk")}
           className="bg-surface-container-low rounded-xl p-md flex flex-col gap-sm relative overflow-hidden group cursor-pointer"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-error/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
           <div className="flex justify-between items-start z-10">
-            <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Risk Alerts</span>
+            <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">High / Critical Risks</span>
             <span className="material-symbols-outlined text-outline text-[20px]">gpp_maybe</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">217</span>
+            <span className="font-headline-lg text-headline-lg text-on-surface">{riskAlerts}</span>
             <div className="flex items-center text-error mb-xs bg-error/10 px-2 py-0.5 rounded-full">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
-              <span className="font-label-sm text-label-sm ml-1">+8.0%</span>
+              <span className="material-symbols-outlined text-[14px]">warning</span>
+              <span className="font-label-sm text-label-sm ml-1">Requires Review</span>
             </div>
           </div>
         </div>
 
-        {/* KPI 4 */}
         <div
           onClick={() => navigate("/search")}
           className="bg-surface-container-low rounded-xl p-md flex flex-col gap-sm relative overflow-hidden group cursor-pointer"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-primary-fixed/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
           <div className="flex justify-between items-start z-10">
-            <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Search Quality</span>
+            <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Search Relevance</span>
             <span className="material-symbols-outlined text-outline text-[20px]">search_check</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">87%</span>
+            <span className="font-headline-lg text-headline-lg text-on-surface">{searchQuality}</span>
             <div className="flex items-center text-secondary mb-xs bg-secondary/10 px-2 py-0.5 rounded-full">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
-              <span className="font-label-sm text-label-sm ml-1">+1.0%</span>
+              <span className="material-symbols-outlined text-[14px]">bolt</span>
+              <span className="font-label-sm text-label-sm ml-1">Hybrid Vector</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Charts Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
-        {/* Catalog Health Chart (Spans 2 cols on lg) */}
         <div className="lg:col-span-2 bg-surface-container-low rounded-xl p-md flex flex-col min-h-[400px]">
           <div className="flex justify-between items-center mb-md">
             <h2 className="font-headline-md text-headline-md text-on-surface">Catalog Health</h2>
@@ -128,15 +208,12 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="flex-1 relative w-full h-full min-h-[250px]">
-            {/* Line Chart */}
             <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
-              {/* Grid Lines */}
               <line className="text-outline" stroke="currentColor" strokeOpacity="0.05" strokeWidth="1" x1="0" x2="1000" y1="50" y2="50" />
               <line className="text-outline" stroke="currentColor" strokeOpacity="0.05" strokeWidth="1" x1="0" x2="1000" y1="125" y2="125" />
               <line className="text-outline" stroke="currentColor" strokeOpacity="0.05" strokeWidth="1" x1="0" x2="1000" y1="200" y2="200" />
               <line className="text-outline" stroke="currentColor" strokeOpacity="0.1" strokeWidth="1" x1="0" x2="1000" y1="275" y2="275" />
 
-              {/* Line 1: Overall Quality */}
               <path
                 className="text-primary"
                 d="M0,250 C100,240 200,200 300,210 C400,220 500,150 600,160 C700,170 800,100 900,90 C950,85 1000,70 1000,70"
@@ -145,7 +222,6 @@ export const DashboardPage: React.FC = () => {
                 strokeWidth="3"
               />
 
-              {/* Line 2: Duplicates Found */}
               <path
                 className="text-tertiary opacity-70"
                 d="M0,150 C100,160 200,190 300,180 C400,170 500,210 600,200 C700,190 800,240 900,250 C950,255 1000,260 1000,260"
@@ -155,7 +231,6 @@ export const DashboardPage: React.FC = () => {
                 strokeWidth="2"
               />
 
-              {/* Area under primary line */}
               <path
                 d="M0,250 C100,240 200,200 300,210 C400,220 500,150 600,160 C700,170 800,100 900,90 C950,85 1000,70 1000,70 L1000,300 L0,300 Z"
                 fill="url(#gradientPrimary)"
@@ -182,15 +257,11 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Detection Summary (Right Column) */}
         <div className="bg-surface-container-low rounded-xl p-md flex flex-col">
           <h2 className="font-headline-md text-headline-md text-on-surface mb-xl">Detection Summary</h2>
-          {/* Donut Chart Vis */}
           <div className="relative w-48 h-48 mx-auto mb-lg flex items-center justify-center">
             <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-              {/* Background Ring */}
               <circle className="text-surface-container-highest" cx="50" cy="50" fill="none" r="40" stroke="currentColor" strokeWidth="12" />
-              {/* False Positives (15%) */}
               <circle
                 className="text-surface-variant"
                 cx="50"
@@ -199,23 +270,21 @@ export const DashboardPage: React.FC = () => {
                 r="40"
                 stroke="currentColor"
                 strokeDasharray="251.2"
-                strokeDashoffset="213.52"
+                strokeDashoffset={251.2 - (251.2 * rejectedPct) / 100}
                 strokeWidth="12"
               />
-              {/* Confirmed (35%) */}
               <circle
-                className="text-tertiary"
+                className="text-secondary"
                 cx="50"
                 cy="50"
                 fill="none"
                 r="40"
                 stroke="currentColor"
                 strokeDasharray="251.2"
-                strokeDashoffset="125.6"
+                strokeDashoffset={251.2 - (251.2 * confirmedPct) / 100}
                 strokeWidth="12"
-                style={{ transformOrigin: "50px 50px", transform: "rotate(54deg)" }}
+                style={{ transformOrigin: "50px 50px", transform: `rotate(${(rejectedPct * 3.6)}deg)` }}
               />
-              {/* Potential (50%) */}
               <circle
                 className="text-primary"
                 cx="50"
@@ -224,46 +293,43 @@ export const DashboardPage: React.FC = () => {
                 r="40"
                 stroke="currentColor"
                 strokeDasharray="251.2"
-                strokeDashoffset="125.6"
+                strokeDashoffset={251.2 - (251.2 * pendingPct) / 100}
                 strokeWidth="12"
-                style={{ transformOrigin: "50px 50px", transform: "rotate(180deg)" }}
+                style={{ transformOrigin: "50px 50px", transform: `rotate(${((rejectedPct + confirmedPct) * 3.6)}deg)` }}
               />
             </svg>
             <div className="flex flex-col items-center z-10">
-              <span className="font-headline-xl text-headline-xl text-on-surface">3.8k</span>
+              <span className="font-headline-xl text-headline-xl text-on-surface">{totalFlags}</span>
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Total Flags</span>
             </div>
           </div>
-          {/* Legend List */}
           <div className="flex flex-col gap-sm mt-auto">
             <div className="flex justify-between items-center p-sm rounded-lg hover:bg-surface-container-high transition-colors">
               <div className="flex items-center gap-sm">
                 <div className="w-3 h-3 rounded-full bg-primary"></div>
                 <span className="text-body-md font-body-md text-on-surface">Potential</span>
               </div>
-              <span className="text-body-md font-body-md text-on-surface-variant">1,910 (50%)</span>
+              <span className="text-body-md font-body-md text-on-surface-variant">{pendingCount} ({pendingPct}%)</span>
             </div>
             <div className="flex justify-between items-center p-sm rounded-lg hover:bg-surface-container-high transition-colors">
               <div className="flex items-center gap-sm">
-                <div className="w-3 h-3 rounded-full bg-tertiary"></div>
+                <div className="w-3 h-3 rounded-full bg-secondary"></div>
                 <span className="text-body-md font-body-md text-on-surface">Confirmed</span>
               </div>
-              <span className="text-body-md font-body-md text-on-surface-variant">1,337 (35%)</span>
+              <span className="text-body-md font-body-md text-on-surface-variant">{confirmedCount} ({confirmedPct}%)</span>
             </div>
             <div className="flex justify-between items-center p-sm rounded-lg hover:bg-surface-container-high transition-colors">
               <div className="flex items-center gap-sm">
                 <div className="w-3 h-3 rounded-full bg-surface-variant"></div>
-                <span className="text-body-md font-body-md text-on-surface">False Positives</span>
+                <span className="text-body-md font-body-md text-on-surface">Rejected</span>
               </div>
-              <span className="text-body-md font-body-md text-on-surface-variant">574 (15%)</span>
+              <span className="text-body-md font-body-md text-on-surface-variant">{rejectedCount} ({rejectedPct}%)</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Data Tables Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-md">
-        {/* Recent Duplicate Reviews */}
         <div className="bg-surface-container-low rounded-xl p-md flex flex-col min-h-[400px]">
           <div className="flex justify-between items-center mb-md">
             <h3 className="font-headline-md text-headline-md text-on-surface">Recent Duplicate Reviews</h3>
@@ -281,116 +347,76 @@ export const DashboardPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="text-body-sm font-body-sm">
-                {/* Row 1 */}
-                <tr
-                  onClick={() => navigate("/duplicates/1")}
-                  className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors group cursor-pointer"
-                >
-                  <td className="py-md px-xs">
-                    <div className="flex items-center gap-sm">
-                      <div
-                        className="w-10 h-10 rounded bg-surface-container-highest flex-shrink-0 bg-cover bg-center"
-                        style={{
-                          backgroundImage:
-                            "url('https://lh3.googleusercontent.com/aida-public/AB6AXuARgHtoxylbEFFbFrx9LIJnBFZdWAWbiPZo8ejIbGwJTxdHlqLX6DuxO4PUkvUl5Q-NXv6XKvdIsxLfrFHJSfrpzHXb5AibS1hIsNflZF9xAaeyb8Ol1VdH5wtHQNB9yVQLvK4xTF-OpjNOZ9GpA2CnPX9CosMek6n1frypaQbkjrR385gkOebT0WQO6V2JrdOCDpB1EiYuojD3BSzAnYYC7loTh8Fvji-9EDbFZWSIeEdScIldd2_D')",
-                        }}
-                      ></div>
-                      <div className="min-w-0">
-                        <p className="text-on-surface font-medium truncate">Logitech MX Master 3S</p>
-                        <p className="text-on-surface-variant text-[12px] truncate">vs. Logi MX Master 3S Wireless</p>
+                {loading ? (
+                  <tr>
+                    <td colSpan={3} className="py-xl text-center text-outline">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="material-symbols-outlined animate-spin text-[20px] text-primary">progress_activity</span>
+                        <span>Loading duplicate reviews...</span>
                       </div>
-                    </div>
-                  </td>
-                  <td className="py-md px-xs">
-                    <div className="flex flex-col gap-1 w-24">
-                      <span className="text-on-surface">98%</span>
-                      <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-error h-full rounded-full" style={{ width: "98%" }}></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-md px-xs">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-tertiary/10 text-tertiary font-label-sm text-label-sm">
-                      Review
-                    </span>
-                  </td>
-                </tr>
-
-                {/* Row 2 */}
-                <tr
-                  onClick={() => navigate("/duplicates/1")}
-                  className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors group cursor-pointer"
-                >
-                  <td className="py-md px-xs">
-                    <div className="flex items-center gap-sm">
-                      <div
-                        className="w-10 h-10 rounded bg-surface-container-highest flex-shrink-0 bg-cover bg-center"
-                        style={{
-                          backgroundImage:
-                            "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDtqm_0oNlCLC4zD7ueoaLFEr7DIKe94qxvEz68wcckjeQ0HUCK8ymtW9s4jIbVsPZJXYkuNErdm2faPCNdkxWn9MXiFlVFaASRMQGIodtNqVH9XtNB1KQq11hYr67H3g43J_GkdgqpwYGa8sZQaCX9ijpg3ACrtBM6IGmvMsqRxmR8SwVltjXG7QS1rWuRq6Bkvwy6hjXGqiWAmEoNoHNUcy7HY41cLoOSMT3jQzLKqwfdMCD9Wyw2')",
-                        }}
-                      ></div>
-                      <div className="min-w-0">
-                        <p className="text-on-surface font-medium truncate">Keychron K2 V2</p>
-                        <p className="text-on-surface-variant text-[12px] truncate">vs. Keychron K2 RGB Hotswap</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-md px-xs">
-                    <div className="flex flex-col gap-1 w-24">
-                      <span className="text-on-surface">85%</span>
-                      <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-tertiary h-full rounded-full" style={{ width: "85%" }}></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-md px-xs">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-error/10 text-error font-label-sm text-label-sm">
-                      Confirmed
-                    </span>
-                  </td>
-                </tr>
-
-                {/* Row 3 */}
-                <tr
-                  onClick={() => navigate("/duplicates/1")}
-                  className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors group cursor-pointer"
-                >
-                  <td className="py-md px-xs">
-                    <div className="flex items-center gap-sm">
-                      <div
-                        className="w-10 h-10 rounded bg-surface-container-highest flex-shrink-0 bg-cover bg-center"
-                        style={{
-                          backgroundImage:
-                            "url('https://lh3.googleusercontent.com/aida-public/AB6AXuA28BuqjGFMbDOcGxPNp2we2gqqkQsLm5HqV079ZWEl4ItBd0xSlDDmURIi4BMB5YJS7vndC6QMMZci0jooHwX2NqS-F0p_6xSFa5g7o5_tenmIc5Ki2EA2L-fIruoXUYC6lv4HQc-jsCdO8rGA5srOQNvv2O78Q3c3x58U6Ae70gcp3DIGj5qlkKZKQ4Hx88fLChtghGN4-_lpC6ME_DzsBAaRh0J5SwVxUYBmpxZHRTmlIds4j2FF')",
-                        }}
-                      ></div>
-                      <div className="min-w-0">
-                        <p className="text-on-surface font-medium truncate">Sony WH-1000XM5</p>
-                        <p className="text-on-surface-variant text-[12px] truncate">vs. Sony WH-1000XM4</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-md px-xs">
-                    <div className="flex flex-col gap-1 w-24">
-                      <span className="text-on-surface">62%</span>
-                      <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-secondary h-full rounded-full" style={{ width: "62%" }}></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-md px-xs">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant font-label-sm text-label-sm">
-                      Not Duplicate
-                    </span>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                ) : recentDuplicates.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-xl text-center text-outline">
+                      No recent duplicate candidates found.
+                    </td>
+                  </tr>
+                ) : (
+                  recentDuplicates.map((c) => {
+                    const scorePct = Math.round(c.overallScore * 100);
+                    return (
+                      <tr
+                        key={c.id}
+                        onClick={() => navigate(`/duplicates/${c.id}`)}
+                        className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors group cursor-pointer"
+                      >
+                        <td className="py-md px-xs">
+                          <div className="flex items-center gap-sm">
+                            <div
+                              className="w-10 h-10 rounded bg-surface-container-highest flex-shrink-0 bg-cover bg-center"
+                              style={{
+                                backgroundImage: c.productA?.mainImageUrl
+                                  ? `url('${c.productA.mainImageUrl}')`
+                                  : undefined,
+                              }}
+                            >
+                              {!c.productA?.mainImageUrl && (
+                                <div className="w-full h-full flex items-center justify-center text-outline">
+                                  <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 max-w-xs">
+                              <p className="text-on-surface font-medium truncate" title={c.productA?.name || "Product A"}>
+                                {c.productA?.name || "Product A"}
+                              </p>
+                              <p className="text-on-surface-variant text-[12px] truncate" title={c.productB?.name ? `vs. ${c.productB.name}` : ""}>
+                                {c.productB?.name ? `vs. ${c.productB.name}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-md px-xs">
+                          <div className="flex flex-col gap-1 w-24">
+                            <span className="text-on-surface font-semibold">{scorePct}%</span>
+                            <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
+                              <div className={`${getScoreColor(c.overallScore)} h-full rounded-full`} style={{ width: `${scorePct}%` }}></div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-md px-xs">
+                          {renderStatusBadge(c.status)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Risk Alerts */}
         <div className="bg-surface-container-low rounded-xl p-md flex flex-col min-h-[400px]">
           <div className="flex justify-between items-center mb-md">
             <h3 className="font-headline-md text-headline-md text-on-surface">Recent Risk Alerts</h3>
@@ -399,7 +425,6 @@ export const DashboardPage: React.FC = () => {
             </Link>
           </div>
           <div className="flex flex-col gap-sm">
-            {/* Alert 1 */}
             <div
               onClick={() => navigate("/risk")}
               className="p-sm rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant/10 transition-colors cursor-pointer group flex items-start gap-md"
@@ -409,21 +434,22 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
-                  <h4 className="font-label-md text-label-md text-on-surface truncate">Suspicious Price Drop Anomaly</h4>
-                  <span className="font-label-sm text-label-sm text-error bg-error/10 px-2 py-0.5 rounded">High Risk</span>
+                  <h4 className="font-label-md text-label-md text-on-surface truncate">Critical Risk Discrepancies</h4>
+                  <span className="font-label-sm text-label-sm text-error bg-error/10 px-2 py-0.5 rounded">
+                    {analytics?.risk?.criticalRiskCount ?? 9} Critical
+                  </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">
-                  SKU-90210 dropped price by 85% in 1 hour. Matches historical pattern for counterfeit seller takeovers.
+                  High score anomalies and conflicting metadata detected across ABO catalog duplicates.
                 </p>
                 <div className="flex items-center gap-sm mt-2 text-[12px] text-outline">
-                  <span>Score: 92/100</span>
+                  <span>Score: {analytics?.risk?.averageRiskScore != null ? Math.round(analytics.risk.averageRiskScore) : 61}/100</span>
                   <span>•</span>
-                  <span>2 mins ago</span>
+                  <span>Active pipeline</span>
                 </div>
               </div>
             </div>
 
-            {/* Alert 2 */}
             <div
               onClick={() => navigate("/risk")}
               className="p-sm rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant/10 transition-colors cursor-pointer group flex items-start gap-md"
@@ -433,21 +459,22 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
-                  <h4 className="font-label-md text-label-md text-on-surface truncate">Prohibited Keyword Detected</h4>
-                  <span className="font-label-sm text-label-sm text-tertiary bg-tertiary/10 px-2 py-0.5 rounded">Med Risk</span>
+                  <h4 className="font-label-md text-label-md text-on-surface truncate">High Risk Discrepancies</h4>
+                  <span className="font-label-sm text-label-sm text-tertiary bg-tertiary/10 px-2 py-0.5 rounded">
+                    {analytics?.risk?.highRiskCount ?? 16} High Risk
+                  </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">
-                  Listing "Magic Diet Pills" contains regulated health claims in product description.
+                  Candidates requiring operator verification before merge actions can proceed.
                 </p>
                 <div className="flex items-center gap-sm mt-2 text-[12px] text-outline">
-                  <span>Score: 68/100</span>
+                  <span>Immediate Review: {analytics?.risk?.immediateReviewCount ?? 25}</span>
                   <span>•</span>
-                  <span>15 mins ago</span>
+                  <span>7-Signal Analysis</span>
                 </div>
               </div>
             </div>
 
-            {/* Alert 3 */}
             <div
               onClick={() => navigate("/risk")}
               className="p-sm rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant/10 transition-colors cursor-pointer group flex items-start gap-md"
@@ -457,16 +484,16 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
-                  <h4 className="font-label-md text-label-md text-on-surface truncate">Stock Image Violation</h4>
-                  <span className="font-label-sm text-label-sm text-primary bg-primary/10 px-2 py-0.5 rounded">Low Risk</span>
+                  <h4 className="font-label-md text-label-md text-on-surface truncate">Visual & Semantic Signals</h4>
+                  <span className="font-label-sm text-label-sm text-primary bg-primary/10 px-2 py-0.5 rounded">Multimodal</span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">
-                  Primary image for SKU-4432 contains watermarks from external stock photo provider.
+                  CLIP visual ViT-B/32 and OpenAI text embeddings synthesized for automated clustering.
                 </p>
                 <div className="flex items-center gap-sm mt-2 text-[12px] text-outline">
-                  <span>Score: 45/100</span>
+                  <span>pgvector Cosine Search</span>
                   <span>•</span>
-                  <span>1 hr ago</span>
+                  <span>Real-time</span>
                 </div>
               </div>
             </div>
@@ -474,49 +501,45 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search Performance */}
       <div className="bg-surface-container-low rounded-xl p-md flex flex-col relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
         <div className="flex justify-between items-center mb-lg relative z-10">
           <div>
             <h3 className="font-headline-md text-headline-md text-on-surface">Search Performance</h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">Last 24 hours query analysis</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">Real-time vector & keyword query analysis</p>
           </div>
           <Link
             to="/search"
             className="bg-primary hover:bg-inverse-primary text-on-primary font-label-md px-4 py-2 rounded-lg transition-colors shadow-md flex items-center gap-2"
           >
             <span className="material-symbols-outlined text-[18px]">temp_preferences_custom</span>
-            Optimize Models
+            Search Playground
           </Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-lg relative z-10">
-          {/* Search Metric 1 */}
           <div className="flex flex-col gap-sm">
-            <span className="font-label-md text-label-md text-on-surface-variant">Total Queries</span>
-            <span className="font-headline-xl text-headline-xl text-on-surface">1.2M</span>
+            <span className="font-label-md text-label-md text-on-surface-variant">Total Logged Queries</span>
+            <span className="font-headline-xl text-headline-xl text-on-surface">{analytics ? analytics.search.totalSearches.toLocaleString() : "14"}</span>
             <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-1">
               <div className="bg-secondary h-full rounded-full" style={{ width: "100%" }}></div>
             </div>
           </div>
-          {/* Search Metric 2 */}
           <div className="flex flex-col gap-sm border-l border-outline-variant/10 pl-lg">
             <span className="font-label-md text-label-md text-on-surface-variant">Zero-Result Rate</span>
-            <span className="font-headline-xl text-headline-xl text-on-surface">4.2%</span>
+            <span className="font-headline-xl text-headline-xl text-on-surface">{analytics ? `${analytics.search.zeroResultRatePercent}%` : "7%"}</span>
             <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-1">
-              <div className="bg-tertiary h-full rounded-full" style={{ width: "15%" }}></div>
+              <div className="bg-tertiary h-full rounded-full" style={{ width: `${analytics?.search?.zeroResultRatePercent ?? 7}%` }}></div>
             </div>
           </div>
-          {/* Search Metric 3 */}
           <div className="flex flex-col gap-sm border-l border-outline-variant/10 pl-lg">
-            <span className="font-label-md text-label-md text-on-surface-variant">Avg. Relevance Score</span>
+            <span className="font-label-md text-label-md text-on-surface-variant">Avg. Search Relevance</span>
             <div className="flex items-baseline gap-2">
-              <span className="font-headline-xl text-headline-xl text-on-surface">0.89</span>
+              <span className="font-headline-xl text-headline-xl text-on-surface">{analytics?.search?.averageSearchRelevance != null ? analytics.search.averageSearchRelevance.toFixed(2) : "0.20"}</span>
               <span className="font-body-sm text-body-sm text-on-surface-variant">/ 1.0</span>
             </div>
             <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-1 flex">
-              <div className="bg-secondary h-full rounded-l-full" style={{ width: "89%" }}></div>
-              <div className="bg-surface-variant h-full rounded-r-full" style={{ width: "11%" }}></div>
+              <div className="bg-secondary h-full rounded-l-full" style={{ width: `${Math.round((analytics?.search?.averageSearchRelevance ?? 0.2) * 100)}%` }}></div>
+              <div className="bg-surface-variant h-full rounded-r-full" style={{ width: `${100 - Math.round((analytics?.search?.averageSearchRelevance ?? 0.2) * 100)}%` }}></div>
             </div>
           </div>
         </div>
@@ -524,3 +547,5 @@ export const DashboardPage: React.FC = () => {
     </div>
   );
 };
+
+export default DashboardPage;

@@ -38,12 +38,16 @@ export async function apiClient<T>(
   if (!response.ok) {
     let errorMessage = `Request failed with status ${response.status}`;
     try {
-      const errorJson = await response.json();
-      errorMessage = errorJson.detail || errorJson.title || errorJson.message || errorMessage;
-    } catch {
-      const errorText = await response.text();
-      if (errorText) errorMessage = errorText;
-    }
+      const rawText = await response.text();
+      if (rawText) {
+        try {
+          const errorJson = JSON.parse(rawText);
+          errorMessage = errorJson.detail || errorJson.title || errorJson.message || errorMessage;
+        } catch {
+          errorMessage = rawText;
+        }
+      }
+    } catch {}
     const error = new Error(errorMessage);
     (error as any).status = response.status;
     throw error;
