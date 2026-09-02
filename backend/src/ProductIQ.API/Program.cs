@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using ProductIQ.API.Middleware;
@@ -108,15 +109,19 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     try
     {
+        var dbContext = scope.ServiceProvider.GetRequiredService<ProductIQDbContext>();
+        await dbContext.Database.MigrateAsync();
+        logger.LogInformation("Database migrations applied successfully.");
+
         var seeder = scope.ServiceProvider.GetRequiredService<UserSeeder>();
         await seeder.SeedDefaultUsersAsync();
     }
     catch (Exception ex)
     {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogWarning(ex, "Failed to seed default users during application startup.");
+        logger.LogWarning(ex, "Failed to migrate database or seed default users during application startup.");
     }
 }
 

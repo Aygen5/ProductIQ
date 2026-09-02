@@ -1,16 +1,65 @@
-﻿services:
+services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: productiq-postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: productiq_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-productiq_db}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - productiq_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-productiq_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - productiq-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: productiq-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-productiq_db};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      Jwt__Issuer: ${JWT_ISSUER:-ProductIQ.API}
+      Jwt__Audience: ${JWT_AUDIENCE:-ProductIQ.Client}
+      Jwt__Key: ${JWT_KEY:-ProductIQ_SuperSecret_Jwt_SigningKey_2026_Development_Min32Chars!}
+      Cors__AllowedOrigins__0: http://localhost:3000
+      Cors__AllowedOrigins__1: http://localhost:5173
+      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      Embedding__ApiKey: ${OPENAI_API_KEY:-}
+    ports:
+      - "${BACKEND_PORT:-5003}:5000"
+    networks:
+      - productiq-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: productiq-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - productiq-network
 
 volumes:
   productiq_pgdata:
+
+networks:
+  productiq-network:
+    driver: bridge
