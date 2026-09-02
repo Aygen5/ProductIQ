@@ -6,4 +6,8 @@
     <Project Path="src/ProductIQ.Domain/ProductIQ.Domain.csproj" />
     <Project Path="src/ProductIQ.Infrastructure/ProductIQ.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ProductIQ.UnitTests/ProductIQ.UnitTests.csproj" />
+    <Project Path="tests/ProductIQ.IntegrationTests/ProductIQ.IntegrationTests.csproj" />
+  </Folder>
 </Solution>

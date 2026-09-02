@@ -205,6 +205,46 @@ using (var scope = host.Services.CreateScope())
             }
         }
     }
+    else if (args.Contains("--evaluate-duplicates", StringComparer.OrdinalIgnoreCase))
+    {
+        var scoringService = scope.ServiceProvider.GetRequiredService<IDuplicateScoringService>();
+        var evaluator = new AboDuplicateEvaluator();
+        var dataPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "data", "abo", "listings_0.json.gz");
+        if (!File.Exists(dataPath))
+        {
+            dataPath = Path.GetFullPath("data/abo/listings_0.json.gz");
+        }
+        if (!File.Exists(dataPath))
+        {
+            dataPath = Path.GetFullPath("../data/abo/listings_0.json.gz");
+        }
+
+        var report = await evaluator.RunEvaluationAsync(dataPath, scoringService, logger);
+
+        var outPath = Path.Combine(Path.GetDirectoryName(dataPath)!, "duplicate_evaluation_result.json");
+        var json = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(outPath, json);
+
+        Console.WriteLine("\n========================================================");
+        Console.WriteLine("PRODUCTIQ — DUPLICATE DETECTION EVALUATION REPORT");
+        Console.WriteLine("========================================================");
+        Console.WriteLine($"Total Products Loaded: {report.TotalProductsLoaded}");
+        Console.WriteLine($"Evaluation Pairs: {report.TotalEvaluationPairs} (Positives: {report.GroundTruthPositivePairs}, Negatives: {report.GroundTruthNegativePairs})");
+        Console.WriteLine($"Candidate Generation Captured: {report.CandidateGenerationTruePositiveCaptured}/{report.GroundTruthPositivePairs} (Recall: {report.CandidateGenerationRecall:P2})");
+        Console.WriteLine("--------------------------------------------------------");
+        Console.WriteLine("THRESHOLD ANALYSIS (Precision, Recall, F1)");
+        Console.WriteLine("--------------------------------------------------------");
+        Console.WriteLine("Thresh | TP  | FP  | TN  | FN  | Precision | Recall  | F1 Score");
+        Console.WriteLine("-------|-----|-----|-----|-----|-----------|---------|---------");
+        foreach (var t in report.ThresholdAnalysis)
+        {
+            Console.WriteLine($"{t.Threshold:F2}   | {t.TruePositives,-3} | {t.FalsePositives,-3} | {t.TrueNegatives,-3} | {t.FalseNegatives,-3} | {t.Precision,-9:P2} | {t.Recall,-7:P2} | {t.F1Score,-7:P2}");
+        }
+        Console.WriteLine("--------------------------------------------------------");
+        Console.WriteLine($"Default Threshold ({report.DefaultThresholdMetrics.Threshold:F2}): Precision={report.DefaultThresholdMetrics.Precision:P2}, Recall={report.DefaultThresholdMetrics.Recall:P2}, F1={report.DefaultThresholdMetrics.F1Score:P2}");
+        Console.WriteLine($"Optimal F1 Threshold ({report.OptimalF1Metrics.Threshold:F2}): Precision={report.OptimalF1Metrics.Precision:P2}, Recall={report.OptimalF1Metrics.Recall:P2}, F1={report.OptimalF1Metrics.F1Score:P2}");
+        Console.WriteLine("========================================================\n");
+    }
     else
     {
         var pipeline = scope.ServiceProvider.GetRequiredService<IAboImportPipeline>();
