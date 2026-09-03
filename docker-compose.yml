@@ -30,13 +30,12 @@ services:
         condition: service_healthy
     environment:
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-productiq_db};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5000
       Jwt__Issuer: ${JWT_ISSUER:-ProductIQ.API}
       Jwt__Audience: ${JWT_AUDIENCE:-ProductIQ.Client}
       Jwt__Key: ${JWT_KEY:-ProductIQ_SuperSecret_Jwt_SigningKey_2026_Development_Min32Chars!}
-      Cors__AllowedOrigins__0: http://localhost:3000
-      Cors__AllowedOrigins__1: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       Embedding__ApiKey: ${OPENAI_API_KEY:-}
     ports:

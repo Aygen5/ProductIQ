@@ -91,8 +91,24 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
-                     ?? ["http://localhost:5173", "http://localhost:3000"];
+var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+string[] allowedOrigins;
+if (configuredOrigins != null && configuredOrigins.Length > 0)
+{
+    allowedOrigins = configuredOrigins;
+}
+else
+{
+    var rawAllowed = builder.Configuration["Cors:AllowedOrigins"] ?? builder.Configuration["CORS_ALLOWED_ORIGINS"];
+    if (!string.IsNullOrWhiteSpace(rawAllowed))
+    {
+        allowedOrigins = rawAllowed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+    else
+    {
+        allowedOrigins = ["http://localhost:5173", "http://localhost:3000"];
+    }
+}
 
 builder.Services.AddCors(options =>
 {
@@ -127,7 +143,8 @@ using (var scope = app.Services.CreateScope())
 
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+var enableSwagger = app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enabled", false);
+if (enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
