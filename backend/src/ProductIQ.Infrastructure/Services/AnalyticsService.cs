@@ -141,6 +141,7 @@ public class AnalyticsService : IAnalyticsService
     {
         var candidates = await _context.DuplicateCandidates
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(d => d.ProductA)
                 .ThenInclude(p => p.Images)
             .Include(d => d.ProductA)
