@@ -30,7 +30,7 @@ public class HealthController(ProductIQDbContext dbContext) : ControllerBase
             status = "Healthy",
             service = "ProductIQ.API",
             environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production",
-            version = "1.0.0",
+            version = "1.0.1",
             database = new
             {
                 provider = "PostgreSQL",
