@@ -76,14 +76,14 @@ public static class DependencyInjection
         if (string.IsNullOrWhiteSpace(raw)) return raw;
         raw = raw.Trim().Trim('"').Trim('\'');
 
+        string result;
         if (raw.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             raw.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
-            return ParsePostgresUri(raw);
+            result = ParsePostgresUri(raw);
         }
-
-        if (raw.Contains("Host=", StringComparison.OrdinalIgnoreCase) &&
-            !raw.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase))
+        else if (raw.Contains("Host=", StringComparison.OrdinalIgnoreCase) &&
+                 !raw.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase))
         {
             var isLocalHost = raw.Contains("Host=localhost", StringComparison.OrdinalIgnoreCase) ||
                               raw.Contains("Host=127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
@@ -91,13 +91,21 @@ public static class DependencyInjection
                               raw.EndsWith("Host=postgres", StringComparison.OrdinalIgnoreCase) ||
                               raw.Contains("Host=::1", StringComparison.OrdinalIgnoreCase);
 
-            if (!isLocalHost)
-            {
-                return $"{raw.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true";
-            }
+            result = !isLocalHost
+                ? $"{raw.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true"
+                : raw;
+        }
+        else
+        {
+            result = raw;
         }
 
-        return raw;
+        if (!result.Contains("GSS", StringComparison.OrdinalIgnoreCase))
+        {
+            result = $"{result.TrimEnd(';')};GSS Encryption Mode=Disable";
+        }
+
+        return result;
     }
 
     private static string ParsePostgresUri(string raw)
@@ -147,6 +155,6 @@ public static class DependencyInjection
 
         var sslMode = isLocal ? "Disable" : "Require";
 
-        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true";
+        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true;GSS Encryption Mode=Disable";
     }
 }
