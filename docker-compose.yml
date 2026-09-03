@@ -24,7 +24,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: productiq-backend
-    restart: always
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,7 +48,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: productiq-frontend
-    restart: always
+    restart: unless-stopped
     depends_on:
       - backend
     ports:
