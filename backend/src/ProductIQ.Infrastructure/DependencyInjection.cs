@@ -13,9 +13,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var rawConnectionString = configuration.GetConnectionString("DefaultConnection") 
-            ?? configuration["DATABASE_URL"]
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' or 'DATABASE_URL' not found.");
+        var rawConnectionString = (!string.IsNullOrWhiteSpace(configuration["DATABASE_URL"]) ? configuration["DATABASE_URL"] : null)
+            ?? (!string.IsNullOrWhiteSpace(configuration.GetConnectionString("DefaultConnection")) ? configuration.GetConnectionString("DefaultConnection") : null)
+            ?? throw new InvalidOperationException("Connection string 'DATABASE_URL' or 'DefaultConnection' not found.");
 
         var connectionString = BuildNpgsqlConnectionString(rawConnectionString);
 
@@ -77,8 +77,9 @@ public static class DependencyInjection
             var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
             var port = uri.Port > 0 ? uri.Port : 5432;
             var database = uri.AbsolutePath.TrimStart('/');
+            if (string.IsNullOrWhiteSpace(database)) database = "postgres";
 
-            return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Prefer;Trust Server Certificate=true";
+            return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
         }
 
         return raw;

@@ -12,6 +12,9 @@ using ProductIQ.Application.Common.Constants;
 using ProductIQ.Infrastructure;
 using ProductIQ.Infrastructure.Persistence;
 
+AppContext.SetSwitch("Microsoft.Extensions.FileProviders.Physical.UsePollingFileWatcher", true);
+Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "true");
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplicationServices();

@@ -19,5 +19,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://+:5000
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 EXPOSE 5000
 ENTRYPOINT ["dotnet", "ProductIQ.API.dll"]
