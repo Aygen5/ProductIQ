@@ -1,6 +1,18 @@
 import { getToken, removeToken } from "./tokenStorage";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+function getBaseApiUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl || envUrl.trim() === "" || envUrl === "/api") {
+    return "/api";
+  }
+  const trimmed = envUrl.trim().replace(/\/+$/, "");
+  if (trimmed.startsWith("http") && !trimmed.endsWith("/api")) {
+    return `${trimmed}/api`;
+  }
+  return trimmed;
+}
+
+const API_BASE_URL = getBaseApiUrl();
 
 export async function apiClient<T>(
   endpoint: string,
@@ -16,7 +28,10 @@ export async function apiClient<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  let cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (API_BASE_URL.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
+    cleanEndpoint = cleanEndpoint.substring(4);
+  }
   const url = endpoint.startsWith("http") ? endpoint : `${API_BASE_URL}${cleanEndpoint}`;
 
   const response = await fetch(url, {
