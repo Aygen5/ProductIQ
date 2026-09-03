@@ -13,9 +13,14 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var rawConnectionString = (!string.IsNullOrWhiteSpace(configuration["DATABASE_URL"]) ? configuration["DATABASE_URL"] : null)
+        var rawConnectionString = 
+            (!string.IsNullOrWhiteSpace(configuration["DATABASE_URL"]) ? configuration["DATABASE_URL"] : null)
+            ?? (!string.IsNullOrWhiteSpace(configuration["DATABASE_URL_UNPOOLED"]) ? configuration["DATABASE_URL_UNPOOLED"] : null)
+            ?? (!string.IsNullOrWhiteSpace(configuration["POSTGRES_URL"]) ? configuration["POSTGRES_URL"] : null)
+            ?? (!string.IsNullOrWhiteSpace(configuration["POSTGRESQL_URL"]) ? configuration["POSTGRESQL_URL"] : null)
+            ?? (!string.IsNullOrWhiteSpace(configuration["ConnectionStrings__DefaultConnection"]) ? configuration["ConnectionStrings__DefaultConnection"] : null)
             ?? (!string.IsNullOrWhiteSpace(configuration.GetConnectionString("DefaultConnection")) ? configuration.GetConnectionString("DefaultConnection") : null)
-            ?? throw new InvalidOperationException("Connection string 'DATABASE_URL' or 'DefaultConnection' not found.");
+            ?? throw new InvalidOperationException("Connection string 'DATABASE_URL' or 'DefaultConnection' not found in configuration or environment variables.");
 
         var connectionString = BuildNpgsqlConnectionString(rawConnectionString);
 
@@ -68,6 +73,9 @@ public static class DependencyInjection
 
     private static string BuildNpgsqlConnectionString(string raw)
     {
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+        raw = raw.Trim().Trim('"').Trim('\'');
+
         if (raw.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             raw.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
@@ -80,6 +88,12 @@ public static class DependencyInjection
             if (string.IsNullOrWhiteSpace(database)) database = "postgres";
 
             return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+        }
+
+        if (raw.Contains("Host=", StringComparison.OrdinalIgnoreCase) &&
+            !raw.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{raw.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true";
         }
 
         return raw;
