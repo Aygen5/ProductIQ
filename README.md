@@ -18,6 +18,10 @@
 
 Built on **ASP.NET Core 10** following **Clean Architecture** principles and paired with a high-performance **React 18** Single Page Application, ProductIQ is designed for horizontal scalability, data integrity, and seamless containerized deployments.
 
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="ProductIQ Platform Dashboard" width="100%" />
+</p>
+
 ---
 
 ## 2. Key Features
@@ -97,6 +101,10 @@ ProductIQ enforces strict unidirectional dependencies following Clean Architectu
 
 ### 7-Signal Duplicate Scoring Engine
 
+<p align="center">
+  <img src="docs/images/duplicate-detection.png" alt="ProductIQ Duplicate Review Queue" width="100%" />
+</p>
+
 Candidates are generated via fast blocking rules (matching Brand, Category, Model, or Vector cosine distance) and scored across 7 distinct signals:
 
 | Signal | Evaluation Strategy | Default Weight | Description |
@@ -116,7 +124,21 @@ $$\text{Composite Score} = \sum_{i=1}^{7} (\text{Signal}_i \times \text{Weight}_
 
 ---
 
+### Catalog Risk Detection Engine
+
+<p align="center">
+  <img src="docs/images/risk-detection.png" alt="ProductIQ Catalog Risk Detection" width="100%" />
+</p>
+
+ProductIQ evaluates operational catalog conflicts, specification divergence, and catalog merge hazards across duplicate pairs using deterministic rules and safety thresholds.
+
+---
+
 ### Hybrid Search Engine
+
+<p align="center">
+  <img src="docs/images/search-playground.png" alt="ProductIQ Search Playground" width="100%" />
+</p>
 
 The search playground supports 3 dynamic retrieval modes:
 1. **Keyword Mode**: Fast PostgreSQL `ILIKE` lexical matching over title, brand, and model fields.
