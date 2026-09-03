@@ -76,36 +76,25 @@ public static class DependencyInjection
         if (string.IsNullOrWhiteSpace(raw)) return raw;
         raw = raw.Trim().Trim('"').Trim('\'');
 
-        string result;
         if (raw.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             raw.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
-            result = ParsePostgresUri(raw);
-        }
-        else if (raw.Contains("Host=", StringComparison.OrdinalIgnoreCase) &&
-                 !raw.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase))
-        {
-            var isLocalHost = raw.Contains("Host=localhost", StringComparison.OrdinalIgnoreCase) ||
-                              raw.Contains("Host=127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                              raw.Contains("Host=postgres;", StringComparison.OrdinalIgnoreCase) ||
-                              raw.EndsWith("Host=postgres", StringComparison.OrdinalIgnoreCase) ||
-                              raw.Contains("Host=::1", StringComparison.OrdinalIgnoreCase);
-
-            result = !isLocalHost
-                ? $"{raw.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true"
-                : raw;
-        }
-        else
-        {
-            result = raw;
+            return ParsePostgresUri(raw);
         }
 
-        if (!result.Contains("GSS", StringComparison.OrdinalIgnoreCase))
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder(raw);
+        var isLocal = builder.Host == "localhost" ||
+                      builder.Host == "127.0.0.1" ||
+                      builder.Host == "postgres" ||
+                      builder.Host == "::1";
+
+        if (!isLocal && builder.SslMode == Npgsql.SslMode.Prefer)
         {
-            result = $"{result.TrimEnd(';')};GSS Encryption Mode=Disable";
+            builder.SslMode = Npgsql.SslMode.Require;
         }
 
-        return result;
+        builder["GSS Encryption Mode"] = "Disable";
+        return builder.ConnectionString;
     }
 
     private static string ParsePostgresUri(string raw)
@@ -153,8 +142,17 @@ public static class DependencyInjection
                       host.Equals("postgres", StringComparison.OrdinalIgnoreCase) ||
                       host.Equals("::1", StringComparison.OrdinalIgnoreCase);
 
-        var sslMode = isLocal ? "Disable" : "Require";
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder
+        {
+            Host = host,
+            Port = port,
+            Database = database,
+            Username = username,
+            Password = password,
+            SslMode = isLocal ? Npgsql.SslMode.Disable : Npgsql.SslMode.Require
+        };
+        builder["GSS Encryption Mode"] = "Disable";
 
-        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true;GSS Encryption Mode=Disable";
+        return builder.ConnectionString;
     }
 }
