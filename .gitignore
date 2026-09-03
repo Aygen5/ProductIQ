@@ -35,3 +35,9 @@ data/
 *.csv
 !frontend/src/**
 !backend/src/**/sample*.csv
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
