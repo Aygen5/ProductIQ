@@ -51,4 +51,10 @@ TestResults/
 .cache/
 *.tmp
 
-
+# Internal Documents
+AGENTS.md
+ROADMAP.md
+SKILLS.md
+docs/AGENTS.md
+docs/ROADMAP.md
+docs/SKILLS.md
