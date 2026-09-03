@@ -76,13 +76,22 @@ public class AuthController : ControllerBase
                 Status = StatusCodes.Status401Unauthorized
             });
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex.Message.Contains("deactivated", StringComparison.OrdinalIgnoreCase))
         {
             return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
             {
                 Title = "Access Denied",
                 Detail = ex.Message,
                 Status = StatusCodes.Status403Forbidden
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Database / Server Error",
+                Detail = ex.Message,
+                Status = StatusCodes.Status500InternalServerError
             });
         }
     }

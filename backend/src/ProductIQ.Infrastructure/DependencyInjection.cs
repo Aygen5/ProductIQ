@@ -79,22 +79,7 @@ public static class DependencyInjection
         if (raw.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             raw.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
-            var uri = new Uri(raw);
-            var userInfo = uri.UserInfo.Split(':', 2);
-            var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "postgres";
-            var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
-            var port = uri.Port > 0 ? uri.Port : 5432;
-            var database = uri.AbsolutePath.TrimStart('/');
-            if (string.IsNullOrWhiteSpace(database)) database = "postgres";
-
-            var isLocal = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                          uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                          uri.Host.Equals("postgres", StringComparison.OrdinalIgnoreCase) ||
-                          uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
-
-            var sslMode = isLocal ? "Disable" : "Require";
-
-            return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true";
+            return ParsePostgresUri(raw);
         }
 
         if (raw.Contains("Host=", StringComparison.OrdinalIgnoreCase) &&
@@ -113,5 +98,55 @@ public static class DependencyInjection
         }
 
         return raw;
+    }
+
+    private static string ParsePostgresUri(string raw)
+    {
+        var schemeIndex = raw.IndexOf("://", StringComparison.Ordinal);
+        var withoutScheme = schemeIndex >= 0 ? raw.Substring(schemeIndex + 3) : raw;
+
+        var queryIndex = withoutScheme.IndexOf('?');
+        if (queryIndex >= 0)
+        {
+            withoutScheme = withoutScheme.Substring(0, queryIndex);
+        }
+
+        var lastAtIndex = withoutScheme.LastIndexOf('@');
+        var userInfoPart = lastAtIndex >= 0 ? withoutScheme.Substring(0, lastAtIndex) : "";
+        var hostDbPart = lastAtIndex >= 0 ? withoutScheme.Substring(lastAtIndex + 1) : withoutScheme;
+
+        var username = "postgres";
+        var password = "";
+        if (!string.IsNullOrWhiteSpace(userInfoPart))
+        {
+            var firstColonIndex = userInfoPart.IndexOf(':');
+            if (firstColonIndex >= 0)
+            {
+                username = Uri.UnescapeDataString(userInfoPart.Substring(0, firstColonIndex));
+                password = Uri.UnescapeDataString(userInfoPart.Substring(firstColonIndex + 1));
+            }
+            else
+            {
+                username = Uri.UnescapeDataString(userInfoPart);
+            }
+        }
+
+        var slashIndex = hostDbPart.IndexOf('/');
+        var hostPortPart = slashIndex >= 0 ? hostDbPart.Substring(0, slashIndex) : hostDbPart;
+        var database = slashIndex >= 0 ? hostDbPart.Substring(slashIndex + 1) : "postgres";
+        if (string.IsNullOrWhiteSpace(database)) database = "postgres";
+
+        var portIndex = hostPortPart.LastIndexOf(':');
+        var host = portIndex >= 0 ? hostPortPart.Substring(0, portIndex) : hostPortPart;
+        var port = portIndex >= 0 && int.TryParse(hostPortPart.Substring(portIndex + 1), out var p) ? p : 5432;
+
+        var isLocal = host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                      host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                      host.Equals("postgres", StringComparison.OrdinalIgnoreCase) ||
+                      host.Equals("::1", StringComparison.OrdinalIgnoreCase);
+
+        var sslMode = isLocal ? "Disable" : "Require";
+
+        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true";
     }
 }
