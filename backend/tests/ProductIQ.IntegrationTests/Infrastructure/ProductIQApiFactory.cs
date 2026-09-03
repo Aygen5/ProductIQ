@@ -20,7 +20,7 @@ using ProductIQ.Infrastructure.Persistence;
 
 public class ProductIQApiFactory : WebApplicationFactory<Program>
 {
-    public const string TestConnectionString = "Host=127.0.0.1;Port=5433;Database=productiq_test_db;Username=postgres;Password=postgres";
+    public const string TestConnectionString = "Host=127.0.0.1;Port=5433;Database=productiq_test_db;Username=postgres;Password=postgres;SSL Mode=Disable;Trust Server Certificate=true";
 
     private static readonly object InitLock = new();
     private static bool _databaseInitialized = false;

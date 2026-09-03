@@ -47,7 +47,7 @@ jobs:
       - name: Run Backend Integration Tests
         run: dotnet test backend/tests/ProductIQ.IntegrationTests/ProductIQ.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
         env:
-          ConnectionStrings__DefaultConnection: Host=127.0.0.1;Port=5433;Database=productiq_test_db;Username=postgres;Password=postgres
+          ConnectionStrings__DefaultConnection: Host=127.0.0.1;Port=5433;Database=productiq_test_db;Username=postgres;Password=postgres;SSL Mode=Disable;Trust Server Certificate=true
           Jwt__Key: ${{ secrets.JWT_KEY || 'ProductIQ_SuperSecret_Jwt_SigningKey_2026_Development_Min32Chars!' }}
 
   frontend:

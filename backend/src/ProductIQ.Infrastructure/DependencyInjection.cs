@@ -87,13 +87,29 @@ public static class DependencyInjection
             var database = uri.AbsolutePath.TrimStart('/');
             if (string.IsNullOrWhiteSpace(database)) database = "postgres";
 
-            return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+            var isLocal = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                          uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                          uri.Host.Equals("postgres", StringComparison.OrdinalIgnoreCase) ||
+                          uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
+
+            var sslMode = isLocal ? "Disable" : "Require";
+
+            return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true";
         }
 
         if (raw.Contains("Host=", StringComparison.OrdinalIgnoreCase) &&
             !raw.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase))
         {
-            return $"{raw.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true";
+            var isLocalHost = raw.Contains("Host=localhost", StringComparison.OrdinalIgnoreCase) ||
+                              raw.Contains("Host=127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                              raw.Contains("Host=postgres;", StringComparison.OrdinalIgnoreCase) ||
+                              raw.EndsWith("Host=postgres", StringComparison.OrdinalIgnoreCase) ||
+                              raw.Contains("Host=::1", StringComparison.OrdinalIgnoreCase);
+
+            if (!isLocalHost)
+            {
+                return $"{raw.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true";
+            }
         }
 
         return raw;
