@@ -11,30 +11,43 @@ using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
 using ProductIQ.Domain.Enums;
 
+using Microsoft.Extensions.Caching.Memory;
+
 public class AnalyticsService : IAnalyticsService
 {
     private readonly IProductIQDbContext _context;
     private readonly IRiskDetectionService _riskDetectionService;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<AnalyticsService> _logger;
+
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+    private const string AnalyticsSummaryCacheKey = "AnalyticsSummary_CacheKey";
 
     public AnalyticsService(
         IProductIQDbContext context,
         IRiskDetectionService riskDetectionService,
+        IMemoryCache cache,
         ILogger<AnalyticsService> logger)
     {
         _context = context;
         _riskDetectionService = riskDetectionService;
+        _cache = cache;
         _logger = logger;
     }
 
     public async Task<AnalyticsSummaryDto> GetAnalyticsSummaryAsync(CancellationToken cancellationToken = default)
     {
+        if (_cache.TryGetValue(AnalyticsSummaryCacheKey, out AnalyticsSummaryDto? cachedSummary) && cachedSummary != null)
+        {
+            return cachedSummary;
+        }
+
         var catalog = await GetCatalogAnalyticsAsync(cancellationToken);
         var duplicates = await GetDuplicateAnalyticsAsync(cancellationToken);
         var risk = await GetRiskAnalyticsAsync(cancellationToken);
         var search = await GetSearchAnalyticsAsync(cancellationToken);
 
-        return new AnalyticsSummaryDto
+        var summary = new AnalyticsSummaryDto
         {
             Catalog = catalog,
             Duplicates = duplicates,
@@ -42,6 +55,9 @@ public class AnalyticsService : IAnalyticsService
             Search = search,
             GeneratedAt = DateTime.UtcNow
         };
+
+        _cache.Set(AnalyticsSummaryCacheKey, summary, CacheDuration);
+        return summary;
     }
 
     public async Task<CatalogAnalyticsDto> GetCatalogAnalyticsAsync(CancellationToken cancellationToken = default)
@@ -279,6 +295,12 @@ public class AnalyticsService : IAnalyticsService
             _ => "30D"
         };
 
+        var cacheKey = $"CatalogHealth_{normalizedPeriod}";
+        if (_cache.TryGetValue(cacheKey, out CatalogHealthDto? cachedHealth) && cachedHealth != null)
+        {
+            return cachedHealth;
+        }
+
         var days = normalizedPeriod switch
         {
             "7D" => 7,
@@ -353,7 +375,7 @@ public class AnalyticsService : IAnalyticsService
 
         var currentScore = dataPoints.Count > 0 ? dataPoints[^1].QualityScore : 85.0;
 
-        return new CatalogHealthDto
+        var health = new CatalogHealthDto
         {
             Period = normalizedPeriod,
             CurrentQualityScore = currentScore,
@@ -361,5 +383,8 @@ public class AnalyticsService : IAnalyticsService
             TotalProducts = totalProducts,
             DataPoints = dataPoints
         };
+
+        _cache.Set(cacheKey, health, CacheDuration);
+        return health;
     }
 }

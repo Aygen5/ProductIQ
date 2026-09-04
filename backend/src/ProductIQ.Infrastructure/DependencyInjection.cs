@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
 
         services.AddHttpContextAccessor();
+        services.AddMemoryCache();
 
         services.AddHttpClient<IEmbeddingService, OpenAiEmbeddingService>(client =>
         {
