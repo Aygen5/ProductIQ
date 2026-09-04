@@ -20,6 +20,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
     private readonly IExplanationLlmService _llmService;
     private readonly IRiskDetectionService _riskDetectionService;
     private readonly ISettingsService? _settingsService;
+    private readonly IDuplicateScoringService? _scoringService;
     private readonly CandidateDetectionOptions _options;
     private readonly ILogger<DuplicateCandidateService> _logger;
 
@@ -31,7 +32,8 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         IRiskDetectionService riskDetectionService,
         IOptions<CandidateDetectionOptions> options,
         ILogger<DuplicateCandidateService> logger,
-        ISettingsService? settingsService = null)
+        ISettingsService? settingsService = null,
+        IDuplicateScoringService? scoringService = null)
     {
         _context = context;
         _explanationService = explanationService;
@@ -41,6 +43,7 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         _options = options.Value;
         _logger = logger;
         _settingsService = settingsService;
+        _scoringService = scoringService;
     }
 
     public async Task<CandidateDetectionResultDto> RunCandidateDetectionAsync(CancellationToken cancellationToken = default)
@@ -374,6 +377,26 @@ public class DuplicateCandidateService : IDuplicateCandidateService
         if (candidate == null)
         {
             return null;
+        }
+
+        if (candidate.OverallScore == 0.0m && _scoringService != null)
+        {
+            try
+            {
+                var scoringResult = await _scoringService.ScoreCandidateAsync(candidate.Id, cancellationToken);
+                candidate.OverallScore = scoringResult.ScoreBreakdown.OverallScore;
+                candidate.TextSimilarity = scoringResult.ScoreBreakdown.TextSimilarity;
+                candidate.SemanticSimilarity = scoringResult.ScoreBreakdown.SemanticSimilarity;
+                candidate.AttributeSimilarity = scoringResult.ScoreBreakdown.AttributeSimilarity;
+                candidate.BrandMatch = scoringResult.ScoreBreakdown.BrandMatch;
+                candidate.ModelMatch = scoringResult.ScoreBreakdown.ModelMatch;
+                candidate.VisualSimilarity = scoringResult.ScoreBreakdown.ImageSimilarity;
+                candidate.MatchSignals = JsonSerializer.Serialize(scoringResult.ScoreBreakdown.Signals);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to score candidate on detail view for {CandidateId}", candidate.Id);
+            }
         }
 
         var imageSimilarity = await _imageSimilarityService.ComputeImageSimilarityAsync(candidate.ProductAId, candidate.ProductBId, cancellationToken);

@@ -13,11 +13,16 @@ using ProductIQ.Application.DTOs;
 using ProductIQ.Application.Interfaces;
 using ProductIQ.Domain.Enums;
 
+using Microsoft.Extensions.Logging;
+
 [ApiController]
 [Route("api/duplicate-candidates")]
 [Produces("application/json")]
 [Authorize]
-public class DuplicateCandidatesController(IDuplicateCandidateService duplicateCandidateService) : ControllerBase
+public class DuplicateCandidatesController(
+    IDuplicateCandidateService duplicateCandidateService,
+    IDuplicateScoringService duplicateScoringService,
+    ILogger<DuplicateCandidatesController> logger) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResponse<DuplicateCandidateSummaryDto>), StatusCodes.Status200OK)]
@@ -123,6 +128,30 @@ public class DuplicateCandidatesController(IDuplicateCandidateService duplicateC
     public async Task<ActionResult<CandidateDetectionResultDto>> RunDetection(CancellationToken cancellationToken)
     {
         var result = await duplicateCandidateService.RunCandidateDetectionAsync(cancellationToken);
+
+        try
+        {
+            var scoringResult = await duplicateScoringService.ScoreAllCandidatesAsync(cancellationToken);
+            logger.LogInformation("Automatic scoring completed after detection: {Count} candidates evaluated, avg score: {Avg:F4}",
+                scoringResult.TotalCandidatesScored, scoringResult.AverageOverallScore);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Candidate detection completed, but batch similarity scoring encountered an issue.");
+        }
+
+        return Ok(result);
+    }
+
+    [HttpPost("score")]
+    [Authorize(Policy = AuthorizationConstants.Policies.AdminOnly)]
+    [ProducesResponseType(typeof(BatchScoringResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<BatchScoringResultDto>> ScoreCandidates(CancellationToken cancellationToken)
+    {
+        var result = await duplicateScoringService.ScoreAllCandidatesAsync(cancellationToken);
         return Ok(result);
     }
 

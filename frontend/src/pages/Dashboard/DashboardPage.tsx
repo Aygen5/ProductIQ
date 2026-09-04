@@ -68,17 +68,17 @@ export const DashboardPage: React.FC = () => {
     };
   }, [timeRange]);
 
-  const totalProducts = analytics ? analytics.catalog.totalProducts.toLocaleString() : "100";
-  const potentialDuplicates = analytics ? analytics.duplicates.totalCandidates.toLocaleString() : "35";
-  const riskAlerts = analytics ? (analytics.risk.criticalRiskCount + analytics.risk.highRiskCount).toLocaleString() : "25";
+  const totalProducts = analytics ? analytics.catalog.totalProducts.toLocaleString() : null;
+  const potentialDuplicates = analytics ? analytics.duplicates.totalCandidates.toLocaleString() : null;
+  const riskAlerts = analytics ? (analytics.risk.criticalRiskCount + analytics.risk.highRiskCount).toLocaleString() : null;
   const searchQuality = analytics?.search?.averageSearchRelevancePercent != null
     ? `${analytics.search.averageSearchRelevancePercent}%`
-    : "20%";
+    : null;
 
-  const pendingCount = analytics ? analytics.duplicates.pendingReviewCount : 33;
-  const confirmedCount = analytics ? analytics.duplicates.confirmedCount : 1;
-  const rejectedCount = analytics ? analytics.duplicates.rejectedCount : 1;
-  const totalFlags = analytics ? analytics.duplicates.totalCandidates : 35;
+  const pendingCount = analytics ? analytics.duplicates.pendingReviewCount : 0;
+  const confirmedCount = analytics ? analytics.duplicates.confirmedCount : 0;
+  const rejectedCount = analytics ? analytics.duplicates.rejectedCount : 0;
+  const totalFlags = analytics ? analytics.duplicates.totalCandidates : 0;
 
   const pendingPct = Math.round((pendingCount / (totalFlags || 1)) * 100);
   const confirmedPct = Math.round((confirmedCount / (totalFlags || 1)) * 100);
@@ -176,7 +176,11 @@ export const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined text-outline text-[20px]">inventory_2</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">{totalProducts}</span>
+            {loading || totalProducts === null ? (
+              <div className="h-9 w-24 bg-surface-container-highest animate-pulse rounded-lg" />
+            ) : (
+              <span className="font-headline-lg text-headline-lg text-on-surface">{totalProducts}</span>
+            )}
             <div className="flex items-center text-secondary mb-xs bg-secondary/10 px-2 py-0.5 rounded-full">
               <span className="material-symbols-outlined text-[14px]">inventory</span>
               <span className="font-label-sm text-label-sm ml-1">Live ABO</span>
@@ -194,7 +198,11 @@ export const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined text-outline text-[20px]">content_copy</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">{potentialDuplicates}</span>
+            {loading || potentialDuplicates === null ? (
+              <div className="h-9 w-16 bg-surface-container-highest animate-pulse rounded-lg" />
+            ) : (
+              <span className="font-headline-lg text-headline-lg text-on-surface">{potentialDuplicates}</span>
+            )}
             <div className="flex items-center text-tertiary mb-xs bg-tertiary/10 px-2 py-0.5 rounded-full">
               <span className="material-symbols-outlined text-[14px]">psychology</span>
               <span className="font-label-sm text-label-sm ml-1">7-Signal</span>
@@ -212,7 +220,11 @@ export const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined text-outline text-[20px]">gpp_maybe</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">{riskAlerts}</span>
+            {loading || riskAlerts === null ? (
+              <div className="h-9 w-16 bg-surface-container-highest animate-pulse rounded-lg" />
+            ) : (
+              <span className="font-headline-lg text-headline-lg text-on-surface">{riskAlerts}</span>
+            )}
             <div className="flex items-center text-error mb-xs bg-error/10 px-2 py-0.5 rounded-full">
               <span className="material-symbols-outlined text-[14px]">warning</span>
               <span className="font-label-sm text-label-sm ml-1">Requires Review</span>
@@ -230,7 +242,11 @@ export const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined text-outline text-[20px]">search_check</span>
           </div>
           <div className="flex items-end gap-sm z-10 mt-xs">
-            <span className="font-headline-lg text-headline-lg text-on-surface">{searchQuality}</span>
+            {loading || searchQuality === null ? (
+              <div className="h-9 w-20 bg-surface-container-highest animate-pulse rounded-lg" />
+            ) : (
+              <span className="font-headline-lg text-headline-lg text-on-surface">{searchQuality}</span>
+            )}
             <div className="flex items-center text-secondary mb-xs bg-secondary/10 px-2 py-0.5 rounded-full">
               <span className="material-symbols-outlined text-[14px]">bolt</span>
               <span className="font-label-sm text-label-sm ml-1">Hybrid Vector</span>
@@ -397,7 +413,11 @@ export const DashboardPage: React.FC = () => {
               />
             </svg>
             <div className="flex flex-col items-center z-10">
-              <span className="font-headline-xl text-headline-xl text-on-surface">{totalFlags}</span>
+              {loading || !analytics ? (
+                <div className="h-8 w-12 bg-surface-container-highest animate-pulse rounded-md mb-1" />
+              ) : (
+                <span className="font-headline-xl text-headline-xl text-on-surface">{totalFlags}</span>
+              )}
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Total Flags</span>
             </div>
           </div>
@@ -407,21 +427,27 @@ export const DashboardPage: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-primary"></div>
                 <span className="text-body-md font-body-md text-on-surface">Potential</span>
               </div>
-              <span className="text-body-md font-body-md text-on-surface-variant">{pendingCount} ({pendingPct}%)</span>
+              <span className="text-body-md font-body-md text-on-surface-variant">
+                {loading || !analytics ? "—" : `${pendingCount} (${pendingPct}%)`}
+              </span>
             </div>
             <div className="flex justify-between items-center p-sm rounded-lg hover:bg-surface-container-high transition-colors">
               <div className="flex items-center gap-sm">
                 <div className="w-3 h-3 rounded-full bg-secondary"></div>
                 <span className="text-body-md font-body-md text-on-surface">Confirmed</span>
               </div>
-              <span className="text-body-md font-body-md text-on-surface-variant">{confirmedCount} ({confirmedPct}%)</span>
+              <span className="text-body-md font-body-md text-on-surface-variant">
+                {loading || !analytics ? "—" : `${confirmedCount} (${confirmedPct}%)`}
+              </span>
             </div>
             <div className="flex justify-between items-center p-sm rounded-lg hover:bg-surface-container-high transition-colors">
               <div className="flex items-center gap-sm">
                 <div className="w-3 h-3 rounded-full bg-surface-variant"></div>
                 <span className="text-body-md font-body-md text-on-surface">Rejected</span>
               </div>
-              <span className="text-body-md font-body-md text-on-surface-variant">{rejectedCount} ({rejectedPct}%)</span>
+              <span className="text-body-md font-body-md text-on-surface-variant">
+                {loading || !analytics ? "—" : `${rejectedCount} (${rejectedPct}%)`}
+              </span>
             </div>
           </div>
         </div>
@@ -534,14 +560,14 @@ export const DashboardPage: React.FC = () => {
                 <div className="flex justify-between items-start mb-1">
                   <h4 className="font-label-md text-label-md text-on-surface truncate">Critical Risk Discrepancies</h4>
                   <span className="font-label-sm text-label-sm text-error bg-error/10 px-2 py-0.5 rounded">
-                    {analytics?.risk?.criticalRiskCount ?? 9} Critical
+                    {loading || !analytics ? "—" : `${analytics.risk.criticalRiskCount} Critical`}
                   </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">
                   High score anomalies and conflicting metadata detected across ABO catalog duplicates.
                 </p>
                 <div className="flex items-center gap-sm mt-2 text-[12px] text-outline">
-                  <span>Score: {analytics?.risk?.averageRiskScore != null ? Math.round(analytics.risk.averageRiskScore) : 61}/100</span>
+                  <span>Score: {loading || !analytics ? "—" : `${Math.round(analytics.risk.averageRiskScore)}/100`}</span>
                   <span>•</span>
                   <span>Active pipeline</span>
                 </div>
@@ -559,14 +585,14 @@ export const DashboardPage: React.FC = () => {
                 <div className="flex justify-between items-start mb-1">
                   <h4 className="font-label-md text-label-md text-on-surface truncate">High Risk Discrepancies</h4>
                   <span className="font-label-sm text-label-sm text-tertiary bg-tertiary/10 px-2 py-0.5 rounded">
-                    {analytics?.risk?.highRiskCount ?? 16} High Risk
+                    {loading || !analytics ? "—" : `${analytics.risk.highRiskCount} High Risk`}
                   </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">
                   Candidates requiring operator verification before merge actions can proceed.
                 </p>
                 <div className="flex items-center gap-sm mt-2 text-[12px] text-outline">
-                  <span>Immediate Review: {analytics?.risk?.immediateReviewCount ?? 25}</span>
+                  <span>Immediate Review: {loading || !analytics ? "—" : analytics.risk.immediateReviewCount}</span>
                   <span>•</span>
                   <span>7-Signal Analysis</span>
                 </div>
@@ -617,27 +643,27 @@ export const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-lg relative z-10">
           <div className="flex flex-col gap-sm">
             <span className="font-label-md text-label-md text-on-surface-variant">Total Logged Queries</span>
-            <span className="font-headline-xl text-headline-xl text-on-surface">{analytics ? analytics.search.totalSearches.toLocaleString() : "14"}</span>
+            <span className="font-headline-xl text-headline-xl text-on-surface">{loading || !analytics ? "—" : analytics.search.totalSearches.toLocaleString()}</span>
             <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-1">
               <div className="bg-secondary h-full rounded-full" style={{ width: "100%" }}></div>
             </div>
           </div>
           <div className="flex flex-col gap-sm border-l border-outline-variant/10 pl-lg">
             <span className="font-label-md text-label-md text-on-surface-variant">Zero-Result Rate</span>
-            <span className="font-headline-xl text-headline-xl text-on-surface">{analytics ? `${analytics.search.zeroResultRatePercent}%` : "7%"}</span>
+            <span className="font-headline-xl text-headline-xl text-on-surface">{loading || !analytics ? "—" : `${analytics.search.zeroResultRatePercent}%`}</span>
             <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-1">
-              <div className="bg-tertiary h-full rounded-full" style={{ width: `${analytics?.search?.zeroResultRatePercent ?? 7}%` }}></div>
+              <div className="bg-tertiary h-full rounded-full" style={{ width: `${analytics?.search?.zeroResultRatePercent ?? 0}%` }}></div>
             </div>
           </div>
           <div className="flex flex-col gap-sm border-l border-outline-variant/10 pl-lg">
             <span className="font-label-md text-label-md text-on-surface-variant">Avg. Search Relevance</span>
             <div className="flex items-baseline gap-2">
-              <span className="font-headline-xl text-headline-xl text-on-surface">{analytics?.search?.averageSearchRelevance != null ? analytics.search.averageSearchRelevance.toFixed(2) : "0.20"}</span>
+              <span className="font-headline-xl text-headline-xl text-on-surface">{loading || !analytics || analytics.search.averageSearchRelevance == null ? "—" : analytics.search.averageSearchRelevance.toFixed(2)}</span>
               <span className="font-body-sm text-body-sm text-on-surface-variant">/ 1.0</span>
             </div>
             <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-1 flex">
-              <div className="bg-secondary h-full rounded-l-full" style={{ width: `${Math.round((analytics?.search?.averageSearchRelevance ?? 0.2) * 100)}%` }}></div>
-              <div className="bg-surface-variant h-full rounded-r-full" style={{ width: `${100 - Math.round((analytics?.search?.averageSearchRelevance ?? 0.2) * 100)}%` }}></div>
+              <div className="bg-secondary h-full rounded-l-full" style={{ width: `${Math.round((analytics?.search?.averageSearchRelevance ?? 0) * 100)}%` }}></div>
+              <div className="bg-surface-variant h-full rounded-r-full" style={{ width: `${100 - Math.round((analytics?.search?.averageSearchRelevance ?? 0) * 100)}%` }}></div>
             </div>
           </div>
         </div>

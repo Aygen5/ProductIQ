@@ -103,3 +103,9 @@ export async function detectDuplicates(candidateThreshold?: number): Promise<{ d
     method: "POST",
   });
 }
+
+export async function scoreDuplicateCandidates(): Promise<{ totalCandidatesScored: number; averageOverallScore: number }> {
+  return await apiClient<{ totalCandidatesScored: number; averageOverallScore: number }>("/duplicate-candidates/score", {
+    method: "POST",
+  });
+}
